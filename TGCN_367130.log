@@ -153,3 +153,22 @@
 2023-02-13 16:03:46,287 - INFO - Epoch [26/5000] train_loss: 27.5488, val_loss: 33.0973, lr: 0.001000, 23.20s
 2023-02-13 16:03:46,290 - INFO - Saved model at 26
 2023-02-13 16:03:46,290 - INFO - Val loss decrease from 33.4784 to 33.0973, saving to ./libcity/cache/7126/model_cache/TGCN_PEMS_BAY_epoch26.tar
+2023-02-13 16:04:07,174 - INFO - epoch complete!
+2023-02-13 16:04:07,176 - INFO - evaluating now!
+2023-02-13 16:04:09,577 - INFO - Epoch [27/5000] train_loss: 27.5259, val_loss: 33.9985, lr: 0.001000, 23.29s
+2023-02-13 16:04:30,393 - INFO - epoch complete!
+2023-02-13 16:04:30,393 - INFO - evaluating now!
+2023-02-13 16:04:32,794 - INFO - Epoch [28/5000] train_loss: 27.4755, val_loss: 33.5846, lr: 0.001000, 23.22s
+2023-02-13 16:04:53,597 - INFO - epoch complete!
+2023-02-13 16:04:53,599 - INFO - evaluating now!
+2023-02-13 16:04:56,015 - INFO - Epoch [29/5000] train_loss: 27.3156, val_loss: 32.8645, lr: 0.001000, 23.22s
+2023-02-13 16:04:56,020 - INFO - Saved model at 29
+2023-02-13 16:04:56,020 - INFO - Val loss decrease from 33.0973 to 32.8645, saving to ./libcity/cache/7126/model_cache/TGCN_PEMS_BAY_epoch29.tar
+2023-02-13 16:05:17,537 - INFO - epoch complete!
+2023-02-13 16:05:17,539 - INFO - evaluating now!
+2023-02-13 16:05:19,939 - INFO - Epoch [30/5000] train_loss: 27.3966, val_loss: 32.7832, lr: 0.001000, 23.92s
+2023-02-13 16:05:19,941 - INFO - Saved model at 30
+2023-02-13 16:05:19,941 - INFO - Val loss decrease from 32.8645 to 32.7832, saving to ./libcity/cache/7126/model_cache/TGCN_PEMS_BAY_epoch30.tar
+2023-02-13 16:05:40,745 - INFO - epoch complete!
+2023-02-13 16:05:40,746 - INFO - evaluating now!
+2023-02-13 16:05:43,146 - INFO - Epoch [31/5000] train_loss: 27.2822, val_loss: 32.9142, lr: 0.001000, 23.20s
