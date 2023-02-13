@@ -1,0 +1,23 @@
+Using backend: pytorch
+Traceback (most recent call last):
+  File "./run_model.py", line 36, in <module>
+    run_model(task=args.task, model_name=args.model, dataset_name=args.dataset,
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/pipeline/pipeline.py", line 57, in run_model
+    executor.train(train_data, valid_data)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/executor/traffic_state_executor.py", line 297, in train
+    losses = self._train_epoch(train_dataloader, epoch_idx, self.loss_func)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/executor/traffic_state_executor.py", line 369, in _train_epoch
+    loss = loss_func(batch)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/model/traffic_speed_prediction/TGCN.py", line 231, in calculate_loss
+    y_predicted = self.predict(batch)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/model/traffic_speed_prediction/TGCN.py", line 242, in predict
+    return self.forward(batch)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/model/traffic_speed_prediction/TGCN.py", line 218, in forward
+    state = self.tgcn_model(inputs[t], state)
+  File "/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/model/traffic_speed_prediction/TGCN.py", line 111, in forward
+    self._gc(inputs, state, output_size, bias_start=1.0))  # (batch_size, self.num_nodes, output_size)
+  File "/home/zzhang862/Qian/Bigscity-LibCity/libcity/model/traffic_speed_prediction/TGCN.py", line 152, in _gc
+    x1fc = x1fc + torch.sigmoid(torch.matmul(sel.afc_mx.float(),x1.float()))
+NameError: name 'sel' is not defined

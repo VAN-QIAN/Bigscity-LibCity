@@ -59,6 +59,6 @@ class TrafficStatePointDataset(TrafficStateDataset):
         Returns:
             dict: 包含数据集的相关特征的字典
         """
-        return {"scaler": self.scaler, "adj_mx": self.adj_mx, "ext_dim": self.ext_dim,
-                "num_nodes": self.num_nodes, "feature_dim": self.feature_dim,
-                "output_dim": self.output_dim, "num_batches": self.num_batches}
+        return {"scaler": self.scaler, "adj_mx": self.adj_mx,"adj_mx1": self.adj_mx1 ,"ext_dim": self.ext_dim,
+                "num_nodes": self.num_nodes, "feature_dim": self.feature_dim,"coarse_nodes": self.coarse_nodes,
+                "afc_mx": self.afc_mx,"output_dim": self.output_dim, "num_batches": self.num_batches}

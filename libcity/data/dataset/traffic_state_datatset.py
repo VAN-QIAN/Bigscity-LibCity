@@ -136,49 +136,56 @@ class TrafficStateDataset(AbstractDataset):
         Returns:
             np.ndarray: self.adj_mx, N*N的邻接矩阵
         """
-        relfile = pd.read_csv(self.data_path + self.rel_file + '.rel')
-        self._logger.info('set_weight_link_or_dist: {}'.format(self.set_weight_link_or_dist))
-        self._logger.info('init_weight_inf_or_zero: {}'.format(self.init_weight_inf_or_zero))
-        if self.weight_col != '':  # 根据weight_col确认权重列
-            if isinstance(self.weight_col, list):
-                if len(self.weight_col) != 1:
-                    raise ValueError('`weight_col` parameter must be only one column!')
-                self.weight_col = self.weight_col[0]
-            self.distance_df = relfile[~relfile[self.weight_col].isna()][[
-                'origin_id', 'destination_id', self.weight_col]]
-        else:
-            if len(relfile.columns) > 5 or len(relfile.columns) < 4:  # properties不只一列，且未指定weight_col，报错
-                raise ValueError("Don't know which column to be loaded! Please set `weight_col` parameter!")
-            elif len(relfile.columns) == 4:  # 4列说明没有properties列，那就是rel文件中有的代表相邻，否则不相邻
-                self.calculate_weight_adj = False
-                self.set_weight_link_or_dist = 'link'
-                self.init_weight_inf_or_zero = 'zero'
-                self.distance_df = relfile[['origin_id', 'destination_id']]
-            else:  # len(relfile.columns) == 5, properties只有一列，那就默认这一列是权重列
-                self.weight_col = relfile.columns[-1]
-                self.distance_df = relfile[~relfile[self.weight_col].isna()][[
-                    'origin_id', 'destination_id', self.weight_col]]
-        # 把数据转换成矩阵的形式
-        self.adj_mx = np.zeros((len(self.geo_ids), len(self.geo_ids)), dtype=np.float32)
-        if self.init_weight_inf_or_zero.lower() == 'inf' and self.set_weight_link_or_dist.lower() != 'link':
-            self.adj_mx[:] = np.inf
-        for row in self.distance_df.values:
-            if row[0] not in self.geo_to_ind or row[1] not in self.geo_to_ind:
-                continue
-            if self.set_weight_link_or_dist.lower() == 'dist':  # 保留原始的距离数值
-                self.adj_mx[self.geo_to_ind[row[0]], self.geo_to_ind[row[1]]] = row[2]
-                if self.bidir_adj_mx:
-                    self.adj_mx[self.geo_to_ind[row[1]], self.geo_to_ind[row[0]]] = row[2]
-            else:  # self.set_weight_link_or_dist.lower()=='link' 只保留01的邻接性
-                self.adj_mx[self.geo_to_ind[row[0]], self.geo_to_ind[row[1]]] = 1
-                if self.bidir_adj_mx:
-                    self.adj_mx[self.geo_to_ind[row[1]], self.geo_to_ind[row[0]]] = 1
+        relfile = np.load(self.data_path + self.rel_file + '.rel')
+        afc_mx = np.load(self.data_path + self.rel_file + '.afc')
+        adj_mx1 = np.load(self.data_path + self.rel_file + '.adj')
+        self.adj_mx = relfile
+        self.adj_mx1 = adj_mx1
+        self.afc_mx = afc_mx
+        self.coarse_nodes = 137
+        self._logger.info('load adj_mx1: {}'.format(self.adj_mx1.shape))
+        self._logger.info('load afc_mx: {}'.format(self.afc_mx.shape))
         self._logger.info("Loaded file " + self.rel_file + '.rel, shape=' + str(self.adj_mx.shape))
-        # 计算权重
-        if self.distance_inverse and self.set_weight_link_or_dist.lower() != 'link':
-            self._distance_inverse()
-        elif self.calculate_weight_adj and self.set_weight_link_or_dist.lower() != 'link':
-            self._calculate_adjacency_matrix()
+        # if self.weight_col != '':  # 根据weight_col确认权重列
+        #     if isinstance(self.weight_col, list):
+        #         if len(self.weight_col) != 1:
+        #             raise ValueError('`weight_col` parameter must be only one column!')
+        #         self.weight_col = self.weight_col[0]
+        #     self.distance_df = relfile[~relfile[self.weight_col].isna()][[
+        #         'origin_id', 'destination_id', self.weight_col]]
+        # else:
+        #     if len(relfile.columns) > 5 or len(relfile.columns) < 4:  # properties不只一列，且未指定weight_col，报错
+        #         raise ValueError("Don't know which column to be loaded! Please set `weight_col` parameter!")
+        #     elif len(relfile.columns) == 4:  # 4列说明没有properties列，那就是rel文件中有的代表相邻，否则不相邻
+        #         self.calculate_weight_adj = False
+        #         self.set_weight_link_or_dist = 'link'
+        #         self.init_weight_inf_or_zero = 'zero'
+        #         self.distance_df = relfile[['origin_id', 'destination_id']]
+        #     else:  # len(relfile.columns) == 5, properties只有一列，那就默认这一列是权重列
+        #         self.weight_col = relfile.columns[-1]
+        #         self.distance_df = relfile[~relfile[self.weight_col].isna()][[
+        #             'origin_id', 'destination_id', self.weight_col]]
+        # # 把数据转换成矩阵的形式
+        # self.adj_mx = np.zeros((len(self.geo_ids), len(self.geo_ids)), dtype=np.float32)
+        # if self.init_weight_inf_or_zero.lower() == 'inf' and self.set_weight_link_or_dist.lower() != 'link':
+        #     self.adj_mx[:] = np.inf
+        # for row in self.distance_df.values:
+        #     if row[0] not in self.geo_to_ind or row[1] not in self.geo_to_ind:
+        #         continue
+        #     if self.set_weight_link_or_dist.lower() == 'dist':  # 保留原始的距离数值
+        #         self.adj_mx[self.geo_to_ind[row[0]], self.geo_to_ind[row[1]]] = row[2]
+        #         if self.bidir_adj_mx:
+        #             self.adj_mx[self.geo_to_ind[row[1]], self.geo_to_ind[row[0]]] = row[2]
+        #     else:  # self.set_weight_link_or_dist.lower()=='link' 只保留01的邻接性
+        #         self.adj_mx[self.geo_to_ind[row[0]], self.geo_to_ind[row[1]]] = 1
+        #         if self.bidir_adj_mx:
+        #             self.adj_mx[self.geo_to_ind[row[1]], self.geo_to_ind[row[0]]] = 1
+        # self._logger.info("Loaded file " + self.rel_file + '.rel, shape=' + str(self.adj_mx.shape))
+        # # 计算权重
+        # if self.distance_inverse and self.set_weight_link_or_dist.lower() != 'link':
+        #     self._distance_inverse()
+        # elif self.calculate_weight_adj and self.set_weight_link_or_dist.lower() != 'link':
+        #     self._calculate_adjacency_matrix()
 
     def _load_grid_rel(self):
         """
@@ -248,35 +255,37 @@ class TrafficStateDataset(AbstractDataset):
             np.ndarray: 数据数组, 3d-array: (len_time, num_nodes, feature_dim)
         """
         # 加载数据集
-        self._logger.info("Loading file " + filename + '.dyna')
-        dynafile = pd.read_csv(self.data_path + filename + '.dyna')
-        if self.data_col != '':  # 根据指定的列加载数据集
-            if isinstance(self.data_col, list):
-                data_col = self.data_col.copy()
-            else:  # str
-                data_col = [self.data_col].copy()
-            data_col.insert(0, 'time')
-            data_col.insert(1, 'entity_id')
-            dynafile = dynafile[data_col]
-        else:  # 不指定则加载所有列
-            dynafile = dynafile[dynafile.columns[2:]]  # 从time列开始所有列
-        # 求时间序列
-        self.timesolts = list(dynafile['time'][:int(dynafile.shape[0] / len(self.geo_ids))])
-        self.idx_of_timesolts = dict()
-        if not dynafile['time'].isna().any():  # 时间没有空值
-            self.timesolts = list(map(lambda x: x.replace('T', ' ').replace('Z', ''), self.timesolts))
-            self.timesolts = np.array(self.timesolts, dtype='datetime64[ns]')
-            for idx, _ts in enumerate(self.timesolts):
-                self.idx_of_timesolts[_ts] = idx
-        # 转3-d数组
-        feature_dim = len(dynafile.columns) - 2
-        df = dynafile[dynafile.columns[-feature_dim:]]
-        len_time = len(self.timesolts)
-        data = []
-        for i in range(0, df.shape[0], len_time):
-            data.append(df[i:i + len_time].values)
-        data = np.array(data, dtype=np.float)  # (len(self.geo_ids), len_time, feature_dim)
-        data = data.swapaxes(0, 1)  # (len_time, len(self.geo_ids), feature_dim)
+        # self._logger.info("Loading file " + filename + '.dyna')
+        # dynafile = pd.read_csv(self.data_path + filename + '.dyna')
+        # if self.data_col != '':  # 根据指定的列加载数据集
+        #     if isinstance(self.data_col, list):
+        #         data_col = self.data_col.copy()
+        #     else:  # str
+        #         data_col = [self.data_col].copy()
+        #     data_col.insert(0, 'time')
+        #     data_col.insert(1, 'entity_id')
+        #     dynafile = dynafile[data_col]
+        # else:  # 不指定则加载所有列
+        #     dynafile = dynafile[dynafile.columns[2:]]  # 从time列开始所有列
+        # # 求时间序列
+        # self.timesolts = list(dynafile['time'][:int(dynafile.shape[0] / len(self.geo_ids))])
+        # self.idx_of_timesolts = dict()
+        # if not dynafile['time'].isna().any():  # 时间没有空值
+        #     self.timesolts = list(map(lambda x: x.replace('T', ' ').replace('Z', ''), self.timesolts))
+        #     self.timesolts = np.array(self.timesolts, dtype='datetime64[ns]')
+        #     for idx, _ts in enumerate(self.timesolts):
+        #         self.idx_of_timesolts[_ts] = idx
+        # # 转3-d数组
+        # feature_dim = len(dynafile.columns) - 2
+        # df = dynafile[dynafile.columns[-feature_dim:]]
+        # len_time = len(self.timesolts)
+        # data = []
+        # for i in range(0, df.shape[0], len_time):
+        #     data.append(df[i:i + len_time].values)
+        # data = np.array(data, dtype=np.float)  # (len(self.geo_ids), len_time, feature_dim)
+        # data = data.swapaxes(0, 1)  # (len_time, len(self.geo_ids), feature_dim)
+        # self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
+        data = np.load(self.data_path + filename + '.dyna')
         self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
         return data
 
