@@ -15,5 +15,5 @@
   "learning_rate": 0.001,
   "lr_decay": false,
   "clip_grad_norm": false,
-  "use_early_stop": false
+  "use_early_stop": true
 }
