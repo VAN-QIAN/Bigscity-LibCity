@@ -49,7 +49,7 @@ class TGCNCell(nn.Module):
         self.init_params()
 
     def init_params(self, bias_start=0.0):
-        input_size = self.input_dim # + self.num_units
+        input_size = self.input_dim + self.num_units
         weight_0 = torch.nn.Parameter(torch.empty((input_size, 2 * self.num_units), device=self._device))
         bias_0 = torch.nn.Parameter(torch.empty(2 * self.num_units, device=self._device))
         weight_1 = torch.nn.Parameter(torch.empty((input_size, self.num_units), device=self._device))
@@ -135,10 +135,10 @@ class TGCNCell(nn.Module):
         inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
         # coarse = torch.
         state = torch.reshape(state, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
-        #inputs_and_state = torch.cat([inputs, state], dim=2)
-        input_size=inputs.shape[2] #input_size = inputs_and_state.shape[2] #
+        inputs_and_state = torch.cat([inputs, state], dim=2)
+        input_size = inputs_and_state.shape[2] #input_size=inputs.shape[2] 
 
-        x = inputs #inputs_and_state
+        x = inputs_and_state #inputs #
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0 = x0.reshape(shape=(self.num_nodes, -1)) #(num_nodes, batch*dim)
         # d = np.array(self.afc_mx.sum(1))
