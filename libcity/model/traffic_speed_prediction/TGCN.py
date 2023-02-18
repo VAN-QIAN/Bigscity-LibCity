@@ -247,8 +247,8 @@ class TGCNCell(nn.Module):
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X H0
         x1fc = torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())  # A * Xc HC0
-        x1 = x1 + torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
-        x1fc = x1fc + torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
+        # x1 = x1 + torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
+        # x1fc = x1fc + torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
