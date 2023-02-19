@@ -267,7 +267,7 @@ class TrafficStateExecutor(AbstractExecutor):
                 # print(afc_mx.shape)
                 # print(cy_true.shape)
                 cy_true = torch.mm(afc_mx.float() , cy_true.float())
-                cy_true = cy_true.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
+                cy_true = cy_true.reshape(batch_size, input_window, self.model.coarse_nodes, input_dim)
                 
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
                 cy_pred = self._scaler.inverse_transform(coutput[..., :self.output_dim])
