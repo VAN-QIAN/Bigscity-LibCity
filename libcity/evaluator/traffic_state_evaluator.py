@@ -43,6 +43,8 @@ class TrafficStateEvaluator(AbstractEvaluator):
             raise TypeError('evaluator.collect input is not a dict of user')
         y_true = batch['y_true']  # tensor
         y_pred = batch['y_pred']  # tensor
+        cy_true = batch['cy_true']  # tensor
+        cy_pred = batch['cy_pred']  # tensor
         if y_true.shape != y_pred.shape:
             raise ValueError("batch['y_true'].shape is not equal to batch['y_pred'].shape")
         self.len_timeslots = y_true.shape[1]
@@ -55,67 +57,87 @@ class TrafficStateEvaluator(AbstractEvaluator):
                 for metric in self.metrics:
                     if metric == 'masked_MAE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mae_torch(y_pred[:, :i], y_true[:, :i], 0).item())
+                            loss.masked_mae_torch(y_pred[:, :i], y_true[:, :i], 0).item()
+                            +loss.masked_mae_torch(cy_pred[:, :i], cy_true[:, :i], 0).item())
                     elif metric == 'masked_MSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mse_torch(y_pred[:, :i], y_true[:, :i], 0).item())
+                            loss.masked_mse_torch(y_pred[:, :i], y_true[:, :i], 0).item(),
+                            +loss.masked_mse_torch(cy_pred[:, :i], cy_true[:, :i], 0).item())
                     elif metric == 'masked_RMSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i], 0).item())
+                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i], 0).item()
+                            +loss.masked_rmse_torch(cy_pred[:, :i], cy_true[:, :i], 0).item())
                     elif metric == 'masked_MAPE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mape_torch(y_pred[:, :i], y_true[:, :i], 0).item())
+                            loss.masked_mape_torch(y_pred[:, :i], y_true[:, :i], 0).item()
+                            +loss.masked_mape_torch(cy_pred[:, :i], cy_true[:, :i], 0).item())
                     elif metric == 'MAE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mae_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.masked_mae_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.masked_mae_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'MSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mse_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.masked_mse_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.masked_mse_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'RMSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.masked_rmse_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'MAPE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mape_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.masked_mape_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.masked_mape_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'R2':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.r2_score_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.r2_score_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.r2_score_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'EVAR':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.explained_variance_score_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            loss.explained_variance_score_torch(y_pred[:, :i], y_true[:, :i]).item()
+                            +loss.explained_variance_score_torch(cy_pred[:, :i], cy_true[:, :i]).item())
         elif self.mode.lower() == 'single':  # 第i个时间步的loss
             for i in range(1, self.len_timeslots + 1):
                 for metric in self.metrics:
                     if metric == 'masked_MAE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mae_torch(y_pred[:, i-1], y_true[:, i-1], 0).item())
+                            loss.masked_mae_torch(y_pred[:, i-1], y_true[:, i-1], 0).item()
+                            +loss.masked_mae_torch(cy_pred[:, i-1], cy_true[:, i-1], 0).item())
                     elif metric == 'masked_MSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mse_torch(y_pred[:, i-1], y_true[:, i-1], 0).item())
+                            loss.masked_mse_torch(y_pred[:, i-1], y_true[:, i-1], 0).item()
+                            +loss.masked_mse_torch(cy_pred[:, :i], cy_true[:, :i], 0).item())
                     elif metric == 'masked_RMSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_rmse_torch(y_pred[:, i-1], y_true[:, i-1], 0).item())
+                            loss.masked_rmse_torch(y_pred[:, i-1], y_true[:, i-1], 0).item()
+                            +loss.masked_rmse_torch(cy_pred[:, i-1], cy_true[:, i-1], 0).item())
                     elif metric == 'masked_MAPE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mape_torch(y_pred[:, i-1], y_true[:, i-1], 0).item())
+                            loss.masked_mape_torch(y_pred[:, i-1], y_true[:, i-1], 0).item()
+                            +loss.masked_mape_torch(cy_pred[:, i-1], cy_true[:, i-1], 0).item())
                     elif metric == 'MAE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mae_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.masked_mae_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.masked_mae_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
                     elif metric == 'MSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mse_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.masked_mse_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.masked_mse_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
                     elif metric == 'RMSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_rmse_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.masked_rmse_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.masked_rmse_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
                     elif metric == 'MAPE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_mape_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.masked_mape_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.masked_mape_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
                     elif metric == 'R2':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.r2_score_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.r2_score_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.r2_score_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
                     elif metric == 'EVAR':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.explained_variance_score_torch(y_pred[:, i-1], y_true[:, i-1]).item())
+                            loss.explained_variance_score_torch(y_pred[:, i-1], y_true[:, i-1]).item()
+                            +loss.explained_variance_score_torch(cy_pred[:, i-1], cy_true[:, i-1]).item())
         else:
             raise ValueError('Error parameter evaluator_mode={}, please set `single` or `average`.'.format(self.mode))
 
