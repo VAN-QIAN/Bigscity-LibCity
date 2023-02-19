@@ -253,25 +253,43 @@ class TrafficStateExecutor(AbstractExecutor):
             # self.evaluator.clear()
             y_truths = []
             y_preds = []
+            cy_truths = []
+            cy_preds = []
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
-                output = self.model.predict(batch)
+                output,coutput = self.model.predict(batch)
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
+                batch_size, input_window, num_nodes, input_dim = y_true.shape
+                cy_true = torch.reshape(y_true, (batch_size, num_nodes, -1))
+                cy_true = cy_true.permute(1,2,0)
+                cy_true = cy_true.reshape(num_nodes,-1)
+                afc_mx = torch.tensor(self.model.afc_mx.T,device=self.device)
+                # print(afc_mx.shape)
+                # print(cy_true.shape)
+                cy_true = torch.mm(afc_mx.float() , cy_true.float())
+                cy_true = cy_true.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
+                
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
+                cy_pred = self._scaler.inverse_transform(coutput[..., :self.output_dim])
+
                 y_truths.append(y_true.cpu().numpy())
                 y_preds.append(y_pred.cpu().numpy())
+                cy_truths.append(cy_true.cpu().numpy())
+                cy_preds.append(cy_pred.cpu().numpy())
                 # evaluate_input = {'y_true': y_true, 'y_pred': y_pred}
                 # self.evaluator.collect(evaluate_input)
             # self.evaluator.save_result(self.evaluate_res_dir)
             y_preds = np.concatenate(y_preds, axis=0)
             y_truths = np.concatenate(y_truths, axis=0)  # concatenate on batch
-            outputs = {'prediction': y_preds, 'truth': y_truths}
+            cy_preds = np.concatenate(cy_preds, axis=0)
+            cy_truths = np.concatenate(cy_truths, axis=0)  # concatenate on batch
+            outputs = {'prediction': y_preds, 'truth': y_truths,'cprediction': cy_preds, 'ctruth': cy_truths}
             filename = \
                 time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time())) + '_' \
                 + self.config['model'] + '_' + self.config['dataset'] + '_predictions.npz'
             np.savez_compressed(os.path.join(self.evaluate_res_dir, filename), **outputs)
             self.evaluator.clear()
-            self.evaluator.collect({'y_true': torch.tensor(y_truths), 'y_pred': torch.tensor(y_preds)})
+            self.evaluator.collect({'y_true': torch.tensor(y_truths), 'y_pred': torch.tensor(y_preds),'cy_true': torch.tensor(cy_truths), 'cy_pred': torch.tensor(cy_preds)})
             test_result = self.evaluator.save_result(self.evaluate_res_dir)
             return test_result
 
