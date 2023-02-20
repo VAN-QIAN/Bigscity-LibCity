@@ -27,7 +27,7 @@ def calculate_normalized_laplacian(adj):
 
 
 class TGCNCell(nn.Module):
-    def __init__(self, num_units, afc_mx,adj_mx,adj_mx1, num_nodes,coarse_nodes, device, input_dim=1):
+    def __init__(self, num_units, afc_mx,adj_mx,adj_mx1, num_nodes,coarse_nodes, device,n1,n2,input_dim=1):
         # ----------------------初始化参数---------------------------#
         super().__init__()
         self.num_units = num_units
@@ -35,6 +35,8 @@ class TGCNCell(nn.Module):
         self.coarse_nodes = coarse_nodes
         self.input_dim = input_dim
         self._device = device
+        self.n1 = n1
+        self.n2 = n2
         self.act = torch.tanh
 
         # 这里提前构建好拉普拉斯
@@ -247,8 +249,8 @@ class TGCNCell(nn.Module):
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X H0
         x1fc = torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())  # A * Xc HC0
-        x1 = x1 + torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
-        x1fc = x1fc + torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
+        x1 = x1 + self.n1*torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
+        x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
@@ -281,7 +283,9 @@ class TGCN(AbstractTrafficStateModel):
         self.input_dim = data_feature.get('feature_dim', 1)
         self.output_dim = data_feature.get('output_dim', 1)
         self.gru_units = int(config.get('rnn_units', 64))
-        self.lam = config.get('lambda', 0.0015)
+        self.lam = config.get('lambda', 0.01)
+        self.n1 = config.get('n1',0.8)
+        self.n2 = config.get('n2',0.8)
 
         super().__init__(config, data_feature)
 
@@ -292,7 +296,7 @@ class TGCN(AbstractTrafficStateModel):
         self._scaler = self.data_feature.get('scaler')
 
         # -------------------构造模型-----------------------------
-        self.tgcn_model = TGCNCell(self.gru_units,self.afc_mx ,self.adj_mx,self.adj_mx1 ,self.num_nodes,self.coarse_nodes ,self.device, self.input_dim)
+        self.tgcn_model = TGCNCell(self.gru_units,self.afc_mx ,self.adj_mx,self.adj_mx1 ,self.num_nodes,self.coarse_nodes ,self.device,self.n1,self.n2,self.input_dim)
         self.output_model = nn.Linear(self.gru_units, self.output_window * self.output_dim)
 
     def forward(self, batch):
@@ -349,10 +353,18 @@ class TGCN(AbstractTrafficStateModel):
         # print(cy_true.shape)
         cy_true = torch.mm(afc_mx.float() , cy_true.float())
         cy_true = cy_true.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
+
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
         cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
 
-        loss = torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2)
+        batch_size, input_window, num_nodes, input_dim = y_predicted.shape
+        y_predicted_c = torch.reshape(y_true, (batch_size, self.num_nodes, -1))
+        y_predicted_c = y_predicted_c.permute(1,2,0)
+        y_predicted_c = y_predicted_c.reshape(num_nodes,-1)
+        y_predicted_c = torch.mm(afc_mx.float() , y_predicted_c.float())
+        y_predicted_c = y_predicted_c.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
+
+        loss = torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam*torch.mean(torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
         loss /= y_predicted.numel()
         # return loss.masked_mae_torch(y_predicted, y_true, 0)
         return loss
