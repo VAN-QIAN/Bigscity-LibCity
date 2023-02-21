@@ -284,8 +284,8 @@ class TGCN(AbstractTrafficStateModel):
         self.output_dim = data_feature.get('output_dim', 1)
         self.gru_units = int(config.get('rnn_units', 64))
         self.lam = config.get('lambda', 0.01)
-        self.n1 = config.get('n1',0.8)
-        self.n2 = config.get('n2',0.2)
+        self.n1 = config.get('n1',0.2)
+        self.n2 = config.get('n2',0.8)
 
         super().__init__(config, data_feature)
 
