@@ -8,4 +8,4 @@
 #SBATCH --time=0-12:00:00        # Time limit day-hrs:min:sec
 #SBATCH --output=../TGCNCoarse_%j.log   # Standard output
 #SBATCH --error=../TGCNCoarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
-singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset PEMS_BAY --train False --exp_id 19627 --config_file config1
+singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset PEMS_BAY --config_file config1
