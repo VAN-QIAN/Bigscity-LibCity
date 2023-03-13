@@ -8,4 +8,4 @@
 #SBATCH --time=0-12:00:00        # Time limit day-hrs:min:sec
 #SBATCH --output=../TGCNC_%j.log   # Standard output
 #SBATCH --error=../TGCNC_%j.err    # Standard error log
-singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset PEMS_BAY
+singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset METR_LA
