@@ -6,6 +6,6 @@
 #SBATCH --gres=gpu:1             # Using 1 GPU card
 #SBATCH --mem=40GB               # Request 50GB memory
 #SBATCH --time=0-12:00:00        # Time limit day-hrs:min:sec
-#SBATCH --output=../LA/TGCN-Coarse_%j.log   # Standard output
-#SBATCH --error=../LA/TGCNCoarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
+#SBATCH --output=../LA-TGCN-Coarse_%j.log   # Standard output
+#SBATCH --error=../LA-TGCNCoarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
 singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset METR_LA --config_file config1
