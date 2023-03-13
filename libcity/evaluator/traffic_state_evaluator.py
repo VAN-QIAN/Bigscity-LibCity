@@ -81,8 +81,8 @@ class TrafficStateEvaluator(AbstractEvaluator):
                             # +loss.masked_mse_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'RMSE':
                         self.intermediate_result[metric + '@' + str(i)].append(
-                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i]).item()
-                            +loss.masked_rmse_torch(cy_pred[:, :i], cy_true[:, :i]).item())
+                            loss.masked_rmse_torch(y_pred[:, :i], y_true[:, :i]).item())
+                            # +loss.masked_rmse_torch(cy_pred[:, :i], cy_true[:, :i]).item())
                     elif metric == 'MAPE':
                         self.intermediate_result[metric + '@' + str(i)].append(
                             loss.masked_mape_torch(y_pred[:, :i], y_true[:, :i]).item())
