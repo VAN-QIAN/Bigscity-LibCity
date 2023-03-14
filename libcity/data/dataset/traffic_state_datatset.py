@@ -142,7 +142,7 @@ class TrafficStateDataset(AbstractDataset):
         self.adj_mx = relfile
         self.adj_mx1 = adj_mx1
         self.afc_mx = afc_mx
-        self.coarse_nodes = 137
+        self.coarse_nodes = len(adj_mx1) #137
         self._logger.info('load adj_mx1: {}'.format(self.adj_mx1.shape))
         self._logger.info('load afc_mx: {}'.format(self.afc_mx.shape))
         self._logger.info("Loaded file " + self.rel_file + '.rel, shape=' + str(self.adj_mx.shape))
