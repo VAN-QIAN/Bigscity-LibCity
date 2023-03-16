@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 from libcity.data.dataset import TrafficStateDataset
 
 
@@ -59,6 +61,7 @@ class TrafficStatePointDataset(TrafficStateDataset):
         Returns:
             dict: 包含数据集的相关特征的字典
         """
+        np.save('./libcity/cache/dataset_cache/adjMatrix',self.adj_mx)
         return {"scaler": self.scaler, "adj_mx": self.adj_mx, "ext_dim": self.ext_dim,
                 "num_nodes": self.num_nodes, "feature_dim": self.feature_dim,
                 "output_dim": self.output_dim, "num_batches": self.num_batches}
