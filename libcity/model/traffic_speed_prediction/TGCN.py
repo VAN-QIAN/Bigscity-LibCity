@@ -127,7 +127,7 @@ class TGCNCell(nn.Module):
         c = c.reshape(shape=(-1, self.num_nodes * self.num_units))
         new_state = u * state + (1.0 - u) * c
 
-        c1=self._g2c(inputs, r1 * state1, self.num_units)
+        c1=self._g2c(inputs, r1 * state1,r * state  ,self.num_units)
         c1 = self.act(c1)
         c1 = c1.reshape(shape=(-1, self.coarse_nodes * self.num_units))
         new_state1 = u1 * state1 + (1.0 - u1) * c1
@@ -189,7 +189,7 @@ class TGCNCell(nn.Module):
         x1 = x1.reshape(shape=(batch_size, self.num_nodes, output_size))
         return x1
     
-    def _g2c(self, inputs, state, output_size, bias_start=0.0):
+    def _g2c(self, inputs, state, state1,output_size, bias_start=0.0):
         """
         GCN
 
@@ -205,18 +205,35 @@ class TGCNCell(nn.Module):
         batch_size = inputs.shape[0]
         inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
         inputs = inputs.permute(1, 2, 0)
-        inputs = inputs.reshape(self.num_nodes,-1)
-        inputs = torch.mm(self.afc_mx.float(),inputs.float())
+        fine_input = inputs
+
+        inputs = inputs.reshape(self.num_nodes, -1)
+        inputs = torch.mm(self.afc_mx.float(), inputs.float())
         inputs = torch.reshape(inputs, (batch_size, self.coarse_nodes, -1))
 
-
         state = torch.reshape(state, (batch_size, self.coarse_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
+
+
+
+        state1 = torch.reshape(state1, (batch_size, self.num_nodes, -1))
+
         inputs_and_state = torch.cat([inputs, state], dim=2)
         input_size = inputs_and_state.shape[2]
+
+
+        # fine_input = fine_input.reshape(self.coarse_nodes, -1)
+        # fine_input = torch.mm(self.afc_mx.float(), fine_input.float())
+        fine_input = torch.reshape(fine_input, (batch_size, self.num_nodes, -1))
+        # print(coarse_input.shape)
 
         x = inputs_and_state
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim+gru_units, batch)
         x0 = x0.reshape(shape=(self.coarse_nodes, -1))
+
+        x0fc = torch.cat([fine_input, state1], dim=2)
+        x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
+        x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
+        x1fc = torch.sparse.mm(self.afc_mx.float(), x0fc)
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
@@ -224,8 +241,13 @@ class TGCNCell(nn.Module):
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1 = x1.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
 
+        x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
+        x1fc = x1fc.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
+        x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
+
         weights = self.weigts1[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights)  # (batch_size * self.num_nodes, output_size)
+        x1 = torch.matmul(x1, weights) + self.n2 * torch.sigmoid(
+            torch.matmul(x1fc, weights))  # (batch_size * self.coarse_nodes, output_size)
 
         biases = self.biases1[(output_size,)]
         x1 += biases
