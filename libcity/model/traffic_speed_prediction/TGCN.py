@@ -409,7 +409,7 @@ class TGCN(AbstractTrafficStateModel):
         y_predicted_c = torch.mm(afc_mx.float() , y_predicted_c.float())
         y_predicted_c = y_predicted_c.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
 
-        loss = torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam*torch.mean(torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
+        loss = 2*torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam*torch.mean(torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
         loss /= y_predicted.numel()
         # return loss.masked_mae_torch(y_predicted, y_true, 0)
         return loss

@@ -7,5 +7,5 @@
 #SBATCH --mem=40GB               # Request 50GB memory
 #SBATCH --time=0-12:00:00        # Time limit day-hrs:min:sec
 #SBATCH --output=../TGCN_LA_Coarse_%j.log   # Standard output
-#SBATCH --error=../TGCN_LACoarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
+#SBATCH --error=../TGCN_LA_Coarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
 singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model TGCN --dataset METR_LA --config_file config1
