@@ -249,8 +249,8 @@ class TGCNCell(nn.Module):
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X H0
         x1fc = torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())  # A * Xc HC0
-        x1 = x1 + self.n1*torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
-        x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
+        # x1 = x1 + self.n1*torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
+        # x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
@@ -260,8 +260,8 @@ class TGCNCell(nn.Module):
 
         weights = self.weigts[(input_size, output_size)]
         weights1 = self.weigts1[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights)#+torch.sigmoid(torch.matmul(x1fc,weights1)) #torch.matmul(x1, weights)  # (batch_size * self.num_nodes, output_size)
-        x1fc = torch.matmul(x1fc,weights1)#+torch.sigmoid(torch.matmul(x1,weights)) #torch.matmul(
+        x1 = torch.matmul(x1, weights)+self.n1*torch.sigmoid(torch.matmul(x1fc,weights1)) #H1
+        x1fc = torch.matmul(x1fc,weights1)+self.n2*torch.sigmoid(torch.matmul(x1,weights)) #H1C
         biases = self.biases[(output_size,)]
         biases1 = self.biases1[(output_size,)]
         x1 += biases
