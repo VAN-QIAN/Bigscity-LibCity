@@ -283,13 +283,13 @@ class TrafficStateExecutor(AbstractExecutor):
             y_truths = np.concatenate(y_truths, axis=0)  # concatenate on batch
             cy_preds = np.concatenate(cy_preds, axis=0)
             cy_truths = np.concatenate(cy_truths, axis=0)  # concatenate on batch
-            outputs = {'prediction': y_preds, 'truth': y_truths,'cprediction': cy_preds, 'ctruth': cy_truths}
+            outputs = {'prediction': y_preds, 'truth': y_truths}#,'cprediction': cy_preds, 'ctruth': cy_truths}
             filename = \
                 time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time())) + '_' \
                 + self.config['model'] + '_' + self.config['dataset'] + '_predictions.npz'
             np.savez_compressed(os.path.join(self.evaluate_res_dir, filename), **outputs)
             self.evaluator.clear()
-            self.evaluator.collect({'y_true': torch.tensor(y_truths), 'y_pred': torch.tensor(y_preds),'cy_true': torch.tensor(cy_truths), 'cy_pred': torch.tensor(cy_preds)})
+            self.evaluator.collect({'y_true': torch.tensor(y_truths), 'y_pred': torch.tensor(y_preds)})#,'cy_true': torch.tensor(cy_truths), 'cy_pred': torch.tensor(cy_preds)})
             test_result = self.evaluator.save_result(self.evaluate_res_dir)
             return test_result
 
