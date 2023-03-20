@@ -127,7 +127,7 @@ class TGCNCell(nn.Module):
         c = c.reshape(shape=(-1, self.num_nodes * self.num_units))
         new_state = u * state + (1.0 - u) * c
 
-        c1=self._g2c(inputs, r1 * state1,r * state  ,self.num_units)
+        c1=self._g2c(inputs, r1 * state1, new_state  ,self.num_units) #r * state
         c1 = self.act(c1)
         c1 = c1.reshape(shape=(-1, self.coarse_nodes * self.num_units))
         new_state1 = u1 * state1 + (1.0 - u1) * c1
