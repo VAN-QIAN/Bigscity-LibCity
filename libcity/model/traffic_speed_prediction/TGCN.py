@@ -40,7 +40,7 @@ class TGCNCell(nn.Module):
         self._device = device
         self.n1 = n1
         self.n2 = n2
-        self.n3 = n1
+        self.n3 = n2
         self.n4 = n2
         self.act = torch.tanh
 
@@ -713,12 +713,18 @@ class TGCN(AbstractTrafficStateModel):
 
         loss1,loss2 = self.assign_loss(self.adj_mx1,acs)
 
-        loss = 2 * torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(
-            torch.norm(cy_true - cy_predicted) ** 2 / 2) + torch.mean(
-            torch.norm(sy_true - sy_predicted) ** 2 / 2) + lam * torch.mean(
-            torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
-        loss /= y_predicted.numel()
+        self._logger.info('link_loss: {0} ent_loss:{1}'.format(loss1,loss2))
+
+        a = torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2)/y_predicted.numel()
+        b = torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2)/y_predicted.numel()
+        c = torch.mean(torch.norm(sy_true - sy_predicted) ** 2 / 2)/y_predicted.numel()
+        d = torch.mean(torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)/y_predicted.numel()
+
+        loss = 2 * a + b + c + lam * d
+        # loss /= /y_predicted.numel()
         loss = loss + loss1 + loss2
+
+        self._logger.info('fine_loss: {0} coarse_loss:{1} superloss:{2} align_loss:{3}'.format(a,b,c,d))
 
         # return loss.masked_mae_torch(y_predicted, y_true, 0)
         return loss
