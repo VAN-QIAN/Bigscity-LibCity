@@ -106,12 +106,13 @@ def calculate_normalized_laplacian(adj):
 
 
 class TGCNCell(nn.Module):
-    def __init__(self, num_units, afc_mx,adj_mx,adj_mx1, num_nodes,coarse_nodes, device,n1,n2,input_dim=1):
+    def __init__(self, num_units, afc_mx,adj_mx,adj_mx1, num_nodes,coarse_nodes, super_nodes,device,n1,n2,input_dim=1):
         # ----------------------初始化参数---------------------------#
         super().__init__()
         self.num_units = num_units
         self.num_nodes = num_nodes
         self.coarse_nodes = coarse_nodes
+        self.super_nodes = super_nodes
         self.input_dim = input_dim
         self._device = device
         self.n1 = n1
@@ -148,7 +149,7 @@ class TGCNCell(nn.Module):
 
         self.weigts = {weight_0.shape: weight_0, weight_1.shape: weight_1}
         self.biases = {bias_0.shape: bias_0, bias_1.shape: bias_1}
-
+        # Second layer
         weight_01 = torch.nn.Parameter(torch.empty((input_size, 2 * self.num_units), device=self._device))
         bias_01 = torch.nn.Parameter(torch.empty(2 * self.num_units, device=self._device))
         weight_11 = torch.nn.Parameter(torch.empty((input_size, self.num_units), device=self._device))
@@ -166,6 +167,28 @@ class TGCNCell(nn.Module):
 
         self.weigts1 = {weight_01.shape: weight_01, weight_11.shape: weight_11}
         self.biases1 = {bias_01.shape: bias_01, bias_11.shape: bias_11}
+
+        # Third layer
+        weight_02 = torch.nn.Parameter(torch.empty((input_size, 2 * self.num_units), device=self._device))
+        bias_02 = torch.nn.Parameter(torch.empty(2 * self.num_units, device=self._device))
+        weight_12 = torch.nn.Parameter(torch.empty((input_size, self.num_units), device=self._device))
+        bias_12 = torch.nn.Parameter(torch.empty(self.num_units, device=self._device))
+
+        torch.nn.init.xavier_normal_(weight_02)
+        torch.nn.init.xavier_normal_(weight_12)
+        torch.nn.init.constant_(bias_02, bias_start)
+        torch.nn.init.constant_(bias_12, bias_start)
+
+        self.register_parameter(name='weights_02', param=weight_02)
+        self.register_parameter(name='weights_12', param=weight_12)
+        self.register_parameter(name='bias_02', param=bias_02)
+        self.register_parameter(name='bias_12', param=bias_12)
+
+        self.weigts2 = {weight_02.shape: weight_02, weight_12.shape: weight_12}
+        self.biases2 = {bias_02.shape: bias_02, bias_12.shape: bias_12}
+
+    #     Parameter for the trainable assign matrix
+        assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self._device))
 
     @staticmethod
     def _build_sparse_matrix(lap, device):
@@ -206,7 +229,7 @@ class TGCNCell(nn.Module):
         c = c.reshape(shape=(-1, self.num_nodes * self.num_units))
         new_state = u * state + (1.0 - u) * c
 
-        c1=self._g2c(inputs, r1 * state1,r * state  ,self.num_units)
+        c1=self._g2c(inputs, r1 * state1,new_state ,self.num_units) # or new_state?
         c1 = self.act(c1)
         c1 = c1.reshape(shape=(-1, self.coarse_nodes * self.num_units))
         new_state1 = u1 * state1 + (1.0 - u1) * c1
@@ -215,7 +238,7 @@ class TGCNCell(nn.Module):
     
     def _ggc(self, inputs,state,state1,output_size, bias_start=0.0):
         """
-        GCN
+        2nd layer GCN for fine nodes
 
         Args:
             inputs: (batch, self.num_nodes * self.dim)
@@ -270,7 +293,7 @@ class TGCNCell(nn.Module):
     
     def _g2c(self, inputs, state, state1,output_size, bias_start=0.0):
         """
-        GCN
+        2nd layer GCN for the coarse nodes
 
         Args:
             inputs: (batch, self.num_nodes * self.dim)
@@ -334,14 +357,15 @@ class TGCNCell(nn.Module):
         x1 = x1.reshape(shape=(batch_size, self.coarse_nodes, output_size))
         return x1
     
-    def _gc(self, inputs, state,state1, output_size, bias_start=0.0):
+    def _gc(self, inputs, state,state1, state2,output_size, bias_start=0.0):
         """
-        GCN
+        1st layer GCN for both coarse fine and super nodes
 
         Args:
             inputs: (batch, self.num_nodes * self.dim)
             state: (batch, self.num_nodes * self.gru_units)
             state1: (batch, self.coarse_nodes * self.gru_units)
+            state2: (batch, self.super_nodes * self.gru_units)
             output_size:
             bias_start:
 
