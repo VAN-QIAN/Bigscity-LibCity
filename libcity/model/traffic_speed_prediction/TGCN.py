@@ -6,13 +6,14 @@ from logging import getLogger
 from libcity.model.abstract_traffic_state_model import AbstractTrafficStateModel
 from torch import Tensor
 
+
 def dense_diff_pool(
-    x: Tensor,
-    adj: Tensor,
-    s: Tensor,
-    # mask: Optional[Tensor] = None,
-    normalize: bool = True,
-) :
+        x: Tensor,
+        adj: Tensor,
+        s: Tensor,
+        # mask: Optional[Tensor] = None,
+        normalize: bool = True,
+):
     r"""The differentiable pooling operator from the `"Hierarchical Graph
     Representation Learning with Differentiable Pooling"
     <https://arxiv.org/abs/1806.08804>`_ paper
@@ -62,6 +63,7 @@ def dense_diff_pool(
         :class:`torch.Tensor`, :class:`torch.Tensor`)
     """
     x = x.unsqueeze(0) if x.dim() == 2 else x
+    adj = torch.tensor(adj).float()
     adj = adj.unsqueeze(0) if adj.dim() == 2 else adj
     s = s.unsqueeze(0) if s.dim() == 2 else s
 
@@ -83,7 +85,10 @@ def dense_diff_pool(
 
     ent_loss = (-s * torch.log(s + 1e-15)).sum(dim=-1).mean()
 
+    # out_adj = out_adj.numpy()
+
     return out, out_adj, link_loss, ent_loss
+
 
 def calculate_normalized_laplacian(adj):
     """
@@ -106,7 +111,8 @@ def calculate_normalized_laplacian(adj):
 
 
 class TGCNCell(nn.Module):
-    def __init__(self, num_units, afc_mx,adj_mx,adj_mx1, num_nodes,coarse_nodes, super_nodes,device,n1,n2,input_dim=1):
+    def __init__(self, num_units, afc_mx, adj_mx, adj_mx1, num_nodes, coarse_nodes, super_nodes, device, n1, n2,
+                 input_dim=1):
         # ----------------------初始化参数---------------------------#
         super().__init__()
         self.num_units = num_units
@@ -117,6 +123,8 @@ class TGCNCell(nn.Module):
         self._device = device
         self.n1 = n1
         self.n2 = n2
+        self.n3 = n1
+        self.n4 = n2
         self.act = torch.tanh
 
         # 这里提前构建好拉普拉斯
@@ -124,8 +132,8 @@ class TGCNCell(nn.Module):
         support1 = calculate_normalized_laplacian(adj_mx1)
         self.adj_mx = adj_mx
         self.adj_mx1 = adj_mx1
-        self.afc_mx = torch.tensor(afc_mx.T,device=self._device)
-        self.afc_mxt = torch.tensor(afc_mx,device=self._device)
+        self.afc_mx = torch.tensor(afc_mx.T, device=self._device)
+        self.afc_mxt = torch.tensor(afc_mx, device=self._device)
         self.normalized_adj = self._build_sparse_matrix(support, self._device)
         self.normalized_adj1 = self._build_sparse_matrix(support1, self._device)
         self.init_params()
@@ -187,8 +195,10 @@ class TGCNCell(nn.Module):
         self.weigts2 = {weight_02.shape: weight_02, weight_12.shape: weight_12}
         self.biases2 = {bias_02.shape: bias_02, bias_12.shape: bias_12}
 
-    #     Parameter for the trainable assign matrix
+        #     Parameter for the trainable assign matrix
         assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self._device))
+        self.register_parameter(name='assMatrix', param=assMatrix)
+        self.assMatrix = assMatrix
 
     @staticmethod
     def _build_sparse_matrix(lap, device):
@@ -199,7 +209,7 @@ class TGCNCell(nn.Module):
         lap = torch.sparse_coo_tensor(indices.T, lap.data, lap.shape, device=device)
         return lap
 
-    def forward(self, inputs, state,state1):
+    def forward(self, inputs, state, state1, state2):
         """
         Gated recurrent unit (GRU) with Graph Convolution.
 
@@ -211,34 +221,49 @@ class TGCNCell(nn.Module):
             torch.tensor: shape (B, num_nodes * gru_units)
         """
         output_size = 2 * self.num_units
-        x1,x1fc = self._gc(inputs, state,state1, output_size, bias_start=1.0)
+        x1, x1fc, x1cs, adj2, loss1 ,loss2 = self._gc(inputs, state, state1, state2, output_size, bias_start=1.0)
 
-        value= torch.sigmoid(x1)  # (batch_size, self.num_nodes, output_size)
+        value = torch.sigmoid(x1)  # (batch_size, self.num_nodes, output_size)
         r, u = torch.split(tensor=value, split_size_or_sections=self.num_units, dim=-1)
         value1 = torch.sigmoid(x1fc)  # (batch_size, self.coarse_nodes, output_size)
         r1, u1 = torch.split(tensor=value1, split_size_or_sections=self.num_units, dim=-1)
+        value2 = torch.sigmoid(x1cs)  # (batch_size, self.super_nodes, output_size)
+        r2, u2 = torch.split(tensor=value2, split_size_or_sections=self.num_units, dim=-1)
 
-        r1 = torch.reshape(r1, (-1, self.coarse_nodes * self.num_units))  # (batch_size, self.num_nodes * self.gru_units)
+        r2 = torch.reshape(r2, (-1, self.super_nodes * self.num_units))
+        u2 = torch.reshape(u2, (-1, self.super_nodes * self.num_units))
+
+        r1 = torch.reshape(r1,
+                           (-1, self.coarse_nodes * self.num_units))  # (batch_size, self.num_nodes * self.gru_units)
         u1 = torch.reshape(u1, (-1, self.coarse_nodes * self.num_units))
 
         r = torch.reshape(r, (-1, self.num_nodes * self.num_units))  # (batch_size, self.num_nodes * self.gru_units)
         u = torch.reshape(u, (-1, self.num_nodes * self.num_units))
 
-        c0=self._ggc(inputs, r * state,r1*state1, self.num_units)
+        c0 = self._ggc(inputs, r * state, r1 * state1, r2*state2,self.num_units,adj2)
         c = self.act(c0)
         c = c.reshape(shape=(-1, self.num_nodes * self.num_units))
         new_state = u * state + (1.0 - u) * c
 
-        c1=self._g2c(inputs, r1 * state1,new_state ,self.num_units) # or new_state?
+        c1 = self._g2c(inputs, r1 * state1, new_state, self.num_units)  # or new_state?
         c1 = self.act(c1)
         c1 = c1.reshape(shape=(-1, self.coarse_nodes * self.num_units))
         new_state1 = u1 * state1 + (1.0 - u1) * c1
 
-        return new_state,new_state1
-    
-    def _ggc(self, inputs,state,state1,output_size, bias_start=0.0):
+        c2 = self._gcsc(inputs, r2 * state2, new_state1,adj2 ,self.num_units)  # or new_state?
+        c2 = self.act(c2)
+        c2 = c2.reshape(shape=(-1, self.super_nodes * self.num_units))
+        new_state2 = u2 * state2 + (1.0 - u2) * c2
+
+        return new_state, new_state1, new_state2 ,loss1,loss2
+
+    def _ggc(self, inputs, state, state1,state2,output_size,adj_mx2 ,bias_start=0.0):
         """
         2nd layer GCN for fine nodes
+
+        n1: from coarse_nodes to the fine_nodes
+
+        n3: from super nodes to the fine_nodes
 
         Args:
             inputs: (batch, self.num_nodes * self.dim)
@@ -253,15 +278,25 @@ class TGCNCell(nn.Module):
         inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
         state = torch.reshape(state, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
         state1 = torch.reshape(state1, (batch_size, self.coarse_nodes, -1))
+        state2 = torch.reshape(state2, (batch_size, self.super_nodes, -1))
         inputs_and_state = torch.cat([inputs, state], dim=2)
         input_size = inputs_and_state.shape[2]
 
         coarse_input = inputs.permute(1, 2, 0)
         coarse_input = coarse_input.reshape(self.num_nodes, -1)
         coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
-        coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
-        # print(coarse_input.shape)
 
+        # super_input
+        acs_mx = self.assMatrix
+        acs_mxt = torch.transpose(acs_mx, 0, 1)
+        super_input = torch.mm(acs_mxt.float(), coarse_input.float())
+        # super_input = torch.mm(self.afc_mx.float(), super_input.float())
+        print("super_input.shape is{}".format(super_input.shape))
+
+        coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
+        super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
+
+        print("super_input.shape is{}".format(super_input.shape))
 
         x = inputs_and_state
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim+gru_units, batch)
@@ -270,9 +305,30 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([coarse_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mxt.float(),x0fc)
+
+        x0cs = torch.cat([super_input, state2], dim=2)
+        print("x0cs {}: ".format(x0cs.shape))
+        print("state2 {}: ".format(state2.shape))
+        x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
+        print("x0cs {}: ".format(x0cs.shape))
+        x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
+        print("x0cs {}: ".format(x0cs.shape))
+
+        # adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
+        # adj_mx2 = adj_mx2.reshape(self.super_nodes, self.super_nodes)
+        # print(adj_mx2.shape)
+        # adj_mx2 = adj_mx2.cpu().numpy()
+        #
+        #
+        # support = calculate_normalized_laplacian(adj_mx2)
+        # adj2 = self._build_sparse_matrix(support,device=self._device)
+
+        adj2 = adj_mx2
+
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X
+        x1fc = torch.mm(self.afc_mxt.float(), x0fc.float())
+        x1cs = torch.mm(self.afc_mxt.float(),(torch.mm(acs_mx.float(), x0cs.float())))
 
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
@@ -281,16 +337,100 @@ class TGCNCell(nn.Module):
         x1fc = x1fc.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
+        print("x1fc {}: ".format(x1fc.shape))
+
+
+        x1cs = x1cs.reshape(shape=(self.num_nodes, input_size, batch_size))
+        x1cs = x1cs.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
+        x1cs = x1cs.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
+        print("x1cs {}: ".format(x1cs.shape))
 
         weights = self.weigts[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights)+self.n1*torch.sigmoid(torch.matmul(x1fc,weights))  # (batch_size * self.num_nodes, output_size)
+        weights1 = self.weigts1[(input_size, output_size)]
+        weights2 = self.weigts2[(input_size, output_size)]
+        print("weigts2 {}: ".format(weights2.shape))
+
+        x1 = torch.matmul(x1, weights) + self.n1 * torch.sigmoid(
+            torch.matmul(x1fc, weights1)) + self.n3*torch.sigmoid(
+            torch.matmul(x1cs, weights2)) # (batch_size * self.num_nodes, output_size)
 
         biases = self.biases[(output_size,)]
         x1 += biases
 
         x1 = x1.reshape(shape=(batch_size, self.num_nodes, output_size))
         return x1
-    
+
+    def _gcsc(self, inputs, state, state1,adj2 ,output_size,bias_start=0.0):
+        """
+        2nd layer GCN for super nodes
+
+        Args:
+            inputs: (batch, self.num_nodes * self.dim)
+            state: (batch, self.num_nodes * self.gru_units)
+            output_size:
+            bias_start:
+
+        Returns:
+            torch.tensor: (B, num_nodes , output_size)
+        """
+        batch_size = inputs.shape[0]
+        inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
+
+        state = torch.reshape(state, (batch_size, self.super_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
+        state1 = torch.reshape(state1, (batch_size, self.coarse_nodes, -1))
+        # inputs_and_state = torch.cat([inputs, state], dim=2)
+
+
+        coarse_input = inputs.permute(1, 2, 0)
+        coarse_input = coarse_input.reshape(self.num_nodes, -1)
+        coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
+
+        #super_input
+        acs_mx = self.assMatrix
+        acs_mxt = torch.transpose(acs_mx,0,1)
+        super_input = torch.mm(acs_mxt.float(),coarse_input.float())
+        # coarse_input = torch.mm(acs_mxt.float(), coarse_input.float())
+
+
+        coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
+        super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
+        # print(coarse_input.shape)
+
+        x = torch.cat([super_input, state], dim=2)
+        input_size = x.shape[2]
+        x0 = x.permute(1, 2, 0)  # (num_nodes, dim+gru_units, batch)
+
+        x0 = x0.reshape(shape=(self.super_nodes, -1))
+
+        x0fc = torch.cat([coarse_input, state1], dim=2)
+
+        x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
+        x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
+        x0fc = torch.mm(acs_mxt.float(), x0fc.float())
+
+        x1fc = x0fc
+        # adj2
+        x1 = torch.mm(adj2.float(),x0.float())  # A * X
+
+        x1 = x1.reshape(shape=(self.super_nodes, input_size, batch_size))
+        x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
+        x1 = x1.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
+
+        x1fc = x1fc.reshape(shape=(self.super_nodes, input_size, batch_size))
+        x1fc = x1fc.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
+        x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
+
+        weights = self.weigts2[(input_size, output_size)]
+        weights1 = self.weigts1[(input_size, output_size)]
+        x1 = torch.matmul(x1, weights) + self.n1 * torch.sigmoid(
+            torch.matmul(x1fc, weights1))  # (batch_size * self.super_nodes, output_size)
+
+        biases = self.biases2[(output_size,)]
+        x1 += biases
+
+        x1 = x1.reshape(shape=(batch_size, self.super_nodes, output_size))
+        return x1
+
     def _g2c(self, inputs, state, state1,output_size, bias_start=0.0):
         """
         2nd layer GCN for the coarse nodes
@@ -315,13 +455,10 @@ class TGCNCell(nn.Module):
 
         state = torch.reshape(state, (batch_size, self.coarse_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
 
-
-
         state1 = torch.reshape(state1, (batch_size, self.num_nodes, -1))
 
         inputs_and_state = torch.cat([inputs, state], dim=2)
         input_size = inputs_and_state.shape[2]
-
 
         # fine_input = fine_input.reshape(self.coarse_nodes, -1)
         # fine_input = torch.mm(self.afc_mx.float(), fine_input.float())
@@ -335,7 +472,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([fine_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mx.float(), x0fc)
+        x1fc = torch.mm(self.afc_mx.float(), x0fc)
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
@@ -348,16 +485,17 @@ class TGCNCell(nn.Module):
         x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
 
         weights = self.weigts1[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights) + self.n2 * torch.sigmoid(
-            torch.matmul(x1fc, weights))  # (batch_size * self.coarse_nodes, output_size)
+        weights1 = self.weigts[(input_size, output_size)]
+        x1 = torch.matmul(x1, weights) + self.n4 * torch.sigmoid(
+            torch.matmul(x1fc, weights1))  # (batch_size * self.coarse_nodes, output_size)
 
         biases = self.biases1[(output_size,)]
         x1 += biases
 
         x1 = x1.reshape(shape=(batch_size, self.coarse_nodes, output_size))
         return x1
-    
-    def _gc(self, inputs, state,state1, state2,output_size, bias_start=0.0):
+
+    def _gc(self, inputs, state, state1, state2, output_size, bias_start=0.0):
         """
         1st layer GCN for both coarse fine and super nodes
 
@@ -376,48 +514,99 @@ class TGCNCell(nn.Module):
         inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
         # coarse = torch.
         state = torch.reshape(state, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
-        state1 =  torch.reshape(state1, (batch_size, self.coarse_nodes, -1))
+        state1 = torch.reshape(state1, (batch_size, self.coarse_nodes, -1))
+        state2 = torch.reshape(state2, (batch_size, self.super_nodes, -1))
+        # print("state.shape is {}".format(state.shape))
+        # print("state1.shape is {}".format(state1.shape))
+        # print("state2.shape is {}".format(state2.shape))
         inputs_and_state = torch.cat([inputs, state], dim=2)
-        input_size = inputs_and_state.shape[2] #input_size=inputs.shape[2] 
+        input_size = inputs_and_state.shape[2]  # input_size=inputs.shape[2]
 
-        x = inputs_and_state #inputs #
+        x = inputs_and_state  # inputs #
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim, batch)
-        x0 = x0.reshape(shape=(self.num_nodes, -1)) #(num_nodes, batch*dim)
+        x0 = x0.reshape(shape=(self.num_nodes, -1))  # (num_nodes, batch*dim)
         # d = np.array(self.afc_mx.sum(1))
-        coarse_input = inputs.permute(1, 2, 0)
-        coarse_input = coarse_input.reshape(self.num_nodes,-1)
-        coarse_input = torch.mm(self.afc_mx.float(),coarse_input.float())
+        input = inputs.permute(1, 2, 0)
+        # print("input.shape IS {}".format(input.shape))
+        coarse_input = input.reshape(self.num_nodes, -1)
+        coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
+
+        # print("COARSE input.shape IS {}".format(coarse_input.shape))
+
+        super_input, adj_mx2, loss1, loss2 = dense_diff_pool(x=coarse_input, adj=self.adj_mx1,
+                                                             s=self.assMatrix)
+        # acs_mx_t=torch.transpose(self.assMatrix, 0, 1)
+        # print("acs_mt shape is {}".format(acs_mx_t.shape))
+        # super_input = acs_mx_t@coarse_input #torch.mm(acs_mx_t.float(),coarse_input.float())
+        print("super input shape: {}".format(super_input.shape))
+        print("diff pool done")
+        # print(super_input1.shape)
+        # super_input1 = torch.squeeze(super_input1)
+        # print(super_input1.shape)
+        # # print("squeeze")
+        # # print(super_input.shape)
+
         coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
+        super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
+        print("super input shape: {}".format(super_input.shape))
         x0fc = torch.cat([coarse_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
-        x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1)) #(coarse_nodes, batch*dim)
+        x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
         # x0fc = torch.matmul(self.afc_mx.float(), x0fc.float()) # (coarse_nodes, batch*dim)
         # x0fc = x0fc/d
-        
+
+        x0cs = torch.cat([super_input, state2], dim=2)
+        print("x0cs shape: {}".format(x0cs.shape))
+        x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
+        print("x0cs shape: {}".format(x0cs.shape))
+        x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
+        print(x0cs.shape)
+        adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
+        adj_mx2 = adj_mx2.reshape(self.super_nodes,self.super_nodes)
+        print(adj_mx2.shape)
+        support = calculate_normalized_laplacian(adj_mx2)
+        adj2 = self._build_sparse_matrix(support, device=self._device)
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X H0
         x1fc = torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())  # A * Xc HC0
+        x1cs = torch.mm(adj2.float(), x0cs.float())
+        print(x1cs.shape)
         # x1 = x1 + self.n1*torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
-        #x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
+        # x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
+        x1cs = x1cs.reshape(shape=(self.super_nodes, input_size, batch_size))
+        print(x1cs.shape)
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1fc = x1fc.permute(2, 0, 1)
+        x1cs = x1cs.permute(2, 0, 1)
+
         x1 = x1.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
         x1fc = x1fc.reshape(shape=(-1, input_size))
+        x1cs = x1cs.reshape(shape=(-1, input_size))
 
         weights = self.weigts[(input_size, output_size)]
         weights1 = self.weigts1[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights)#+self.n1*torch.sigmoid(torch.matmul(torch.matmul(self.afc_mxt.float(), x1fc.float()),weights1)) #H1
-        x1fc = torch.matmul(x1fc,weights1)#+self.n2*torch.sigmoid(torch.matmul(torch.matmul(self.afc_mx.float(),x1.float()),weights)) #H1C
+        weights2 = self.weigts2[(input_size, output_size)]
+
+        x1 = torch.matmul(x1,
+                          weights)  # +self.n1*torch.sigmoid(torch.matmul(torch.matmul(self.afc_mxt.float(), x1fc.float()),weights1)) #H1
+        x1fc = torch.matmul(x1fc,
+                            weights1)  # +self.n2*torch.sigmoid(torch.matmul(torch.matmul(self.afc_mx.float(),x1.float()),weights)) #H1C
+        x1cs = torch.matmul(x1cs, weights2)
+
         biases = self.biases[(output_size,)]
         biases1 = self.biases1[(output_size,)]
+        biases2 = self.biases2[(output_size,)]
+
         x1 += biases
         x1fc += biases1
+        x1cs += biases2
 
         x1 = x1.reshape(shape=(batch_size, self.num_nodes, output_size))
         x1fc = x1fc.reshape(shape=(batch_size, self.coarse_nodes, output_size))
-        return x1,x1fc
+        x1cs = x1cs.reshape(shape=(batch_size, self.super_nodes, output_size))
+        return x1, x1fc, x1cs, adj2,loss1,loss2
 
 
 class TGCN(AbstractTrafficStateModel):
@@ -425,15 +614,16 @@ class TGCN(AbstractTrafficStateModel):
         self.adj_mx = data_feature.get('adj_mx')
         self.adj_mx1 = data_feature.get('adj_mx1')
         self.coarse_nodes = data_feature.get('coarse_nodes')
-        self.afc_mx = data_feature.get('afc_mx')#Add the afc matrix in the data feature
+        self.super_nodes = data_feature.get('super_nodes',10)
+        self.afc_mx = data_feature.get('afc_mx')  # Add the afc matrix in the data feature
         self.num_nodes = data_feature.get('num_nodes', 1)
         config['num_nodes'] = self.num_nodes
         self.input_dim = data_feature.get('feature_dim', 1)
         self.output_dim = data_feature.get('output_dim', 1)
         self.gru_units = int(config.get('rnn_units', 64))
         self.lam = config.get('lambda', 0.01)
-        self.n1 = config.get('n1',0.2)
-        self.n2 = config.get('n2',0.8)
+        self.n1 = config.get('n1', 0.2)
+        self.n2 = config.get('n2', 0.8)
 
         super().__init__(config, data_feature)
 
@@ -444,7 +634,8 @@ class TGCN(AbstractTrafficStateModel):
         self._scaler = self.data_feature.get('scaler')
 
         # -------------------构造模型-----------------------------
-        self.tgcn_model = TGCNCell(self.gru_units,self.afc_mx ,self.adj_mx,self.adj_mx1 ,self.num_nodes,self.coarse_nodes ,self.device,self.n1,self.n2,self.input_dim)
+        self.tgcn_model = TGCNCell(self.gru_units, self.afc_mx, self.adj_mx, self.adj_mx1, self.num_nodes,
+                                   self.coarse_nodes,10 ,self.device, self.n1, self.n2, self.input_dim)
         self.output_model = nn.Linear(self.gru_units, self.output_window * self.output_dim)
 
     def forward(self, batch):
@@ -459,7 +650,6 @@ class TGCN(AbstractTrafficStateModel):
         """
         inputs = batch['X']
         # labels = batch['y']
-        
 
         batch_size, input_window, num_nodes, input_dim = inputs.shape
         # coarse_inputs = self.afc_mx.T * inputs.reshape(shape=(num_nodes, -1))
@@ -469,8 +659,9 @@ class TGCN(AbstractTrafficStateModel):
 
         state = torch.zeros(batch_size, self.num_nodes * self.gru_units).to(self.device)
         state1 = torch.zeros(batch_size, self.coarse_nodes * self.gru_units).to(self.device)
+        state2 = torch.zeros(batch_size, self.super_nodes * self.gru_units).to(self.device)
         for t in range(input_window):
-            state,state1 = self.tgcn_model(inputs[t], state,state1)
+            state, state1,state2,loss1,loss2 = self.tgcn_model(inputs[t], state, state1, state2)
 
         state = state.view(batch_size, self.num_nodes, self.gru_units)  # (batch_size, self.num_nodes, self.gru_units)
         output = self.output_model(state)  # (batch_size, self.num_nodes, self.output_window * self.output_dim)
@@ -481,25 +672,30 @@ class TGCN(AbstractTrafficStateModel):
         output1 = self.output_model(state1)
         output1 = output1.view(batch_size, self.coarse_nodes, self.output_window, self.output_dim)
         output1 = output1.permute(0, 2, 1, 3)
-        return output,output1
+
+        state2 = state2.view(batch_size, self.super_nodes, self.gru_units)
+        output2 = self.output_model(state2)
+        output2 = output2.view(batch_size, self.super_nodes, self.output_window, self.output_dim)
+        output2 = output2.permute(0, 2, 1, 3)
+        return output, output1, output2,loss1,loss2
 
     def calculate_loss(self, batch):
         lam = self.lam
         lreg = sum((torch.norm(param) ** 2 / 2) for param in self.parameters())
 
         labels = batch['y']
-        y_predicted ,cy_predicted= self.predict(batch)
+        y_predicted, cy_predicted,sy_predicted,loss1,loss2 = self.predict(batch)
 
         y_true = self._scaler.inverse_transform(labels[..., :self.output_dim])
         # print(y_true.shape)
         batch_size, input_window, num_nodes, input_dim = y_true.shape
         cy_true = torch.reshape(y_true, (batch_size, self.num_nodes, -1))
-        cy_true = cy_true.permute(1,2,0)
-        cy_true = cy_true.reshape(num_nodes,-1)
-        afc_mx = torch.tensor(self.afc_mx.T,device=self.device)
+        cy_true = cy_true.permute(1, 2, 0)
+        cy_true = cy_true.reshape(num_nodes, -1)
+        afc_mx = torch.tensor(self.afc_mx.T, device=self.device)
         # print(afc_mx.shape)
         # print(cy_true.shape)
-        cy_true = torch.mm(afc_mx.float() , cy_true.float())
+        cy_true = torch.mm(afc_mx.float(), cy_true.float())
         cy_true = cy_true.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
@@ -507,17 +703,18 @@ class TGCN(AbstractTrafficStateModel):
 
         batch_size, input_window, num_nodes, input_dim = y_predicted.shape
         y_predicted_c = torch.reshape(y_true, (batch_size, self.num_nodes, -1))
-        y_predicted_c = y_predicted_c.permute(1,2,0)
-        y_predicted_c = y_predicted_c.reshape(num_nodes,-1)
-        y_predicted_c = torch.mm(afc_mx.float() , y_predicted_c.float())
+        y_predicted_c = y_predicted_c.permute(1, 2, 0)
+        y_predicted_c = y_predicted_c.reshape(num_nodes, -1)
+        y_predicted_c = torch.mm(afc_mx.float(), y_predicted_c.float())
         y_predicted_c = y_predicted_c.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
 
-        loss = 2*torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam*torch.mean(torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
+        loss = 2 * torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(
+            torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam * torch.mean(
+            torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
         loss /= y_predicted.numel()
+        loss = loss + loss1 + loss2
         # return loss.masked_mae_torch(y_predicted, y_true, 0)
         return loss
 
     def predict(self, batch):
         return self.forward(batch)
-
-
