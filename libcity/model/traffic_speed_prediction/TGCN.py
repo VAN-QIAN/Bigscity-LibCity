@@ -7,89 +7,6 @@ from libcity.model.abstract_traffic_state_model import AbstractTrafficStateModel
 from torch import Tensor
 
 
-def dense_diff_pool(
-        x: Tensor,
-        adj: Tensor,
-        s: Tensor,
-        # mask: Optional[Tensor] = None,
-        normalize: bool = True,
-):
-    r"""The differentiable pooling operator from the `"Hierarchical Graph
-    Representation Learning with Differentiable Pooling"
-    <https://arxiv.org/abs/1806.08804>`_ paper
-
-    .. math::
-        \mathbf{X}^{\prime} &= {\mathrm{softmax}(\mathbf{S})}^{\top} \cdot
-        \mathbf{X}
-
-        \mathbf{A}^{\prime} &= {\mathrm{softmax}(\mathbf{S})}^{\top} \cdot
-        \mathbf{A} \cdot \mathrm{softmax}(\mathbf{S})
-
-    based on dense learned assignments :math:`\mathbf{S} \in \mathbb{R}^{B
-    \times N \times C}`.
-    Returns the pooled node feature matrix, the coarsened adjacency matrix and
-    two auxiliary objectives: (1) The link prediction loss
-
-    .. math::
-        \mathcal{L}_{LP} = {\| \mathbf{A} -
-        \mathrm{softmax}(\mathbf{S}) {\mathrm{softmax}(\mathbf{S})}^{\top}
-        \|}_F,
-
-    and (2) the entropy regularization
-
-    .. math::
-        \mathcal{L}_E = \frac{1}{N} \sum_{n=1}^N H(\mathbf{S}_n).
-
-    Args:
-        x (torch.Tensor): Node feature tensor
-            :math:`\mathbf{X} \in \mathbb{R}^{B \times N \times F}`, with
-            batch-size :math:`B`, (maximum) number of nodes :math:`N` for
-            each graph, and feature dimension :math:`F`.
-        adj (torch.Tensor): Adjacency tensor
-            :math:`\mathbf{A} \in \mathbb{R}^{B \times N \times N}`.
-        s (torch.Tensor): Assignment tensor
-            :math:`\mathbf{S} \in \mathbb{R}^{B \times N \times C}`
-            with number of clusters :math:`C`.
-            The softmax does not have to be applied before-hand, since it is
-            executed within this method.
-        mask (torch.Tensor, optional): Mask matrix
-            :math:`\mathbf{M} \in {\{ 0, 1 \}}^{B \times N}` indicating
-            the valid nodes for each graph. (default: :obj:`None`)
-        normalize (bool, optional): If set to :obj:`False`, the link
-            prediction loss is not divided by :obj:`adj.numel()`.
-            (default: :obj:`True`)
-
-    :rtype: (:class:`torch.Tensor`, :class:`torch.Tensor`,
-        :class:`torch.Tensor`, :class:`torch.Tensor`)
-    """
-    x = x.unsqueeze(0) if x.dim() == 2 else x
-    adj = torch.tensor(adj).float()
-    adj = adj.unsqueeze(0) if adj.dim() == 2 else adj
-    s = s.unsqueeze(0) if s.dim() == 2 else s
-
-    batch_size, num_nodes, _ = x.size()
-
-    s = torch.softmax(s, dim=-1)
-
-    # if mask is not None:
-    #     mask = mask.view(batch_size, num_nodes, 1).to(x.dtype)
-    #     x, s = x * mask, s * mask
-
-    out = torch.matmul(s.transpose(1, 2), x)
-    out_adj = torch.matmul(torch.matmul(s.transpose(1, 2), adj), s)
-
-    link_loss = adj - torch.matmul(s, s.transpose(1, 2))
-    link_loss = torch.norm(link_loss, p=2)
-    if normalize is True:
-        link_loss = link_loss / adj.numel()
-
-    ent_loss = (-s * torch.log(s + 1e-15)).sum(dim=-1).mean()
-
-    # out_adj = out_adj.numpy()
-
-    return out, out_adj, link_loss, ent_loss
-
-
 def calculate_normalized_laplacian(adj):
     """
     A = A + I
@@ -209,6 +126,89 @@ class TGCNCell(nn.Module):
         lap = torch.sparse_coo_tensor(indices.T, lap.data, lap.shape, device=device)
         return lap
 
+    def dense_diff_pool(
+            self,
+            x: Tensor,
+            adj: Tensor,
+            s: Tensor,
+            # mask: Optional[Tensor] = None,
+            normalize: bool = True,
+    ):
+        r"""The differentiable pooling operator from the `"Hierarchical Graph
+        Representation Learning with Differentiable Pooling"
+        <https://arxiv.org/abs/1806.08804>`_ paper
+
+        .. math::
+            \mathbf{X}^{\prime} &= {\mathrm{softmax}(\mathbf{S})}^{\top} \cdot
+            \mathbf{X}
+
+            \mathbf{A}^{\prime} &= {\mathrm{softmax}(\mathbf{S})}^{\top} \cdot
+            \mathbf{A} \cdot \mathrm{softmax}(\mathbf{S})
+
+        based on dense learned assignments :math:`\mathbf{S} \in \mathbb{R}^{B
+        \times N \times C}`.
+        Returns the pooled node feature matrix, the coarsened adjacency matrix and
+        two auxiliary objectives: (1) The link prediction loss
+
+        .. math::
+            \mathcal{L}_{LP} = {\| \mathbf{A} -
+            \mathrm{softmax}(\mathbf{S}) {\mathrm{softmax}(\mathbf{S})}^{\top}
+            \|}_F,
+
+        and (2) the entropy regularization
+
+        .. math::
+            \mathcal{L}_E = \frac{1}{N} \sum_{n=1}^N H(\mathbf{S}_n).
+
+        Args:
+            x (torch.Tensor): Node feature tensor
+                :math:`\mathbf{X} \in \mathbb{R}^{B \times N \times F}`, with
+                batch-size :math:`B`, (maximum) number of nodes :math:`N` for
+                each graph, and feature dimension :math:`F`.
+            adj (torch.Tensor): Adjacency tensor
+                :math:`\mathbf{A} \in \mathbb{R}^{B \times N \times N}`.
+            s (torch.Tensor): Assignment tensor
+                :math:`\mathbf{S} \in \mathbb{R}^{B \times N \times C}`
+                with number of clusters :math:`C`.
+                The softmax does not have to be applied before-hand, since it is
+                executed within this method.
+            mask (torch.Tensor, optional): Mask matrix
+                :math:`\mathbf{M} \in {\{ 0, 1 \}}^{B \times N}` indicating
+                the valid nodes for each graph. (default: :obj:`None`)
+            normalize (bool, optional): If set to :obj:`False`, the link
+                prediction loss is not divided by :obj:`adj.numel()`.
+                (default: :obj:`True`)
+
+        :rtype: (:class:`torch.Tensor`, :class:`torch.Tensor`,
+            :class:`torch.Tensor`, :class:`torch.Tensor`)
+        """
+        x = x.unsqueeze(0) if x.dim() == 2 else x
+        adj = torch.tensor(adj).float()
+        adj = adj.unsqueeze(0) if adj.dim() == 2 else adj
+        s = s.unsqueeze(0) if s.dim() == 2 else s
+
+        batch_size, num_nodes, _ = x.size()
+
+        s = torch.softmax(s, dim=-1)
+
+        # if mask is not None:
+        #     mask = mask.view(batch_size, num_nodes, 1).to(x.dtype)
+        #     x, s = x * mask, s * mask
+
+        out = torch.matmul(s.transpose(1, 2), x)
+        out_adj = torch.matmul(torch.matmul(s.transpose(1, 2), adj), s)
+
+        link_loss = adj - torch.matmul(s, s.transpose(1, 2))
+        link_loss = torch.norm(link_loss, p=2)
+        if normalize is True:
+            link_loss = link_loss / adj.numel()
+
+        ent_loss = (-s * torch.log(s + 1e-15)).sum(dim=-1).mean()
+
+        # out_adj = out_adj.numpy()
+
+        return out, out_adj, link_loss, ent_loss
+
     def forward(self, inputs, state, state1, state2):
         """
         Gated recurrent unit (GRU) with Graph Convolution.
@@ -221,7 +221,7 @@ class TGCNCell(nn.Module):
             torch.tensor: shape (B, num_nodes * gru_units)
         """
         output_size = 2 * self.num_units
-        x1, x1fc, x1cs, adj2, loss1 ,loss2 = self._gc(inputs, state, state1, state2, output_size, bias_start=1.0)
+        x1, x1fc, x1cs, adj2 = self._gc(inputs, state, state1, state2, output_size, bias_start=1.0)
 
         value = torch.sigmoid(x1)  # (batch_size, self.num_nodes, output_size)
         r, u = torch.split(tensor=value, split_size_or_sections=self.num_units, dim=-1)
@@ -255,7 +255,7 @@ class TGCNCell(nn.Module):
         c2 = c2.reshape(shape=(-1, self.super_nodes * self.num_units))
         new_state2 = u2 * state2 + (1.0 - u2) * c2
 
-        return new_state, new_state1, new_state2 ,loss1,loss2
+        return new_state, new_state1, new_state2,adj2,self.assMatrix
 
     def _ggc(self, inputs, state, state1,state2,output_size,adj_mx2 ,bias_start=0.0):
         """
@@ -291,12 +291,12 @@ class TGCNCell(nn.Module):
         acs_mxt = torch.transpose(acs_mx, 0, 1)
         super_input = torch.mm(acs_mxt.float(), coarse_input.float())
         # super_input = torch.mm(self.afc_mx.float(), super_input.float())
-        print("super_input.shape is{}".format(super_input.shape))
+        # print("super_input.shape is{}".format(super_input.shape))
 
         coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
         super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
 
-        print("super_input.shape is{}".format(super_input.shape))
+        # print("super_input.shape is{}".format(super_input.shape))
 
         x = inputs_and_state
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim+gru_units, batch)
@@ -307,12 +307,12 @@ class TGCNCell(nn.Module):
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
 
         x0cs = torch.cat([super_input, state2], dim=2)
-        print("x0cs {}: ".format(x0cs.shape))
-        print("state2 {}: ".format(state2.shape))
+        # print("x0cs {}: ".format(x0cs.shape))
+        # print("state2 {}: ".format(state2.shape))
         x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
-        print("x0cs {}: ".format(x0cs.shape))
+        # print("x0cs {}: ".format(x0cs.shape))
         x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
-        print("x0cs {}: ".format(x0cs.shape))
+        # print("x0cs {}: ".format(x0cs.shape))
 
         # adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
         # adj_mx2 = adj_mx2.reshape(self.super_nodes, self.super_nodes)
@@ -337,18 +337,18 @@ class TGCNCell(nn.Module):
         x1fc = x1fc.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
-        print("x1fc {}: ".format(x1fc.shape))
+        # print("x1fc {}: ".format(x1fc.shape))
 
 
         x1cs = x1cs.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1cs = x1cs.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1cs = x1cs.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
-        print("x1cs {}: ".format(x1cs.shape))
+        # print("x1cs {}: ".format(x1cs.shape))
 
         weights = self.weigts[(input_size, output_size)]
         weights1 = self.weigts1[(input_size, output_size)]
         weights2 = self.weigts2[(input_size, output_size)]
-        print("weigts2 {}: ".format(weights2.shape))
+        # print("weigts2 {}: ".format(weights2.shape))
 
         x1 = torch.matmul(x1, weights) + self.n1 * torch.sigmoid(
             torch.matmul(x1fc, weights1)) + self.n3*torch.sigmoid(
@@ -533,13 +533,13 @@ class TGCNCell(nn.Module):
 
         # print("COARSE input.shape IS {}".format(coarse_input.shape))
 
-        super_input, adj_mx2, loss1, loss2 = dense_diff_pool(x=coarse_input, adj=self.adj_mx1,
+        super_input, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=coarse_input, adj=self.adj_mx1,
                                                              s=self.assMatrix)
         # acs_mx_t=torch.transpose(self.assMatrix, 0, 1)
         # print("acs_mt shape is {}".format(acs_mx_t.shape))
         # super_input = acs_mx_t@coarse_input #torch.mm(acs_mx_t.float(),coarse_input.float())
-        print("super input shape: {}".format(super_input.shape))
-        print("diff pool done")
+        # print("super input shape: {}".format(super_input.shape))
+        # print("diff pool done")
         # print(super_input1.shape)
         # super_input1 = torch.squeeze(super_input1)
         # print(super_input1.shape)
@@ -548,7 +548,7 @@ class TGCNCell(nn.Module):
 
         coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
         super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
-        print("super input shape: {}".format(super_input.shape))
+        # print("super input shape: {}".format(super_input.shape))
         x0fc = torch.cat([coarse_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
@@ -556,27 +556,27 @@ class TGCNCell(nn.Module):
         # x0fc = x0fc/d
 
         x0cs = torch.cat([super_input, state2], dim=2)
-        print("x0cs shape: {}".format(x0cs.shape))
+        # print("x0cs shape: {}".format(x0cs.shape))
         x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
-        print("x0cs shape: {}".format(x0cs.shape))
+        # print("x0cs shape: {}".format(x0cs.shape))
         x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
-        print(x0cs.shape)
+        # print(x0cs.shape)
         adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
         adj_mx2 = adj_mx2.reshape(self.super_nodes,self.super_nodes)
-        print(adj_mx2.shape)
+        # print(adj_mx2.shape)
         support = calculate_normalized_laplacian(adj_mx2)
         adj2 = self._build_sparse_matrix(support, device=self._device)
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X H0
         x1fc = torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())  # A * Xc HC0
         x1cs = torch.mm(adj2.float(), x0cs.float())
-        print(x1cs.shape)
+        # print(x1cs.shape)
         # x1 = x1 + self.n1*torch.sigmoid(torch.matmul(self.afc_mxt.float(), x0fc.float())) #H1
         # x1fc = x1fc + self.n2*torch.sigmoid(torch.matmul(self.afc_mx.float(),x1.float())) #H1C
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1fc = x1fc.reshape(shape=(self.coarse_nodes, input_size, batch_size))
         x1cs = x1cs.reshape(shape=(self.super_nodes, input_size, batch_size))
-        print(x1cs.shape)
+        # print(x1cs.shape)
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
         x1fc = x1fc.permute(2, 0, 1)
         x1cs = x1cs.permute(2, 0, 1)
@@ -606,7 +606,7 @@ class TGCNCell(nn.Module):
         x1 = x1.reshape(shape=(batch_size, self.num_nodes, output_size))
         x1fc = x1fc.reshape(shape=(batch_size, self.coarse_nodes, output_size))
         x1cs = x1cs.reshape(shape=(batch_size, self.super_nodes, output_size))
-        return x1, x1fc, x1cs, adj2,loss1,loss2
+        return x1, x1fc, x1cs, adj2
 
 
 class TGCN(AbstractTrafficStateModel):
@@ -661,7 +661,7 @@ class TGCN(AbstractTrafficStateModel):
         state1 = torch.zeros(batch_size, self.coarse_nodes * self.gru_units).to(self.device)
         state2 = torch.zeros(batch_size, self.super_nodes * self.gru_units).to(self.device)
         for t in range(input_window):
-            state, state1,state2,loss1,loss2 = self.tgcn_model(inputs[t], state, state1, state2)
+            state, state1,state2,adj2,acs = self.tgcn_model(inputs[t], state, state1, state2)
 
         state = state.view(batch_size, self.num_nodes, self.gru_units)  # (batch_size, self.num_nodes, self.gru_units)
         output = self.output_model(state)  # (batch_size, self.num_nodes, self.output_window * self.output_dim)
@@ -677,14 +677,14 @@ class TGCN(AbstractTrafficStateModel):
         output2 = self.output_model(state2)
         output2 = output2.view(batch_size, self.super_nodes, self.output_window, self.output_dim)
         output2 = output2.permute(0, 2, 1, 3)
-        return output, output1, output2,loss1,loss2
+        return output, output1, output2,adj2,acs
 
     def calculate_loss(self, batch):
         lam = self.lam
         lreg = sum((torch.norm(param) ** 2 / 2) for param in self.parameters())
 
         labels = batch['y']
-        y_predicted, cy_predicted,sy_predicted,loss1,loss2 = self.predict(batch)
+        y_predicted, cy_predicted,sy_predicted,adj2,acs= self.predict(batch)
 
         y_true = self._scaler.inverse_transform(labels[..., :self.output_dim])
         # print(y_true.shape)
@@ -692,14 +692,17 @@ class TGCN(AbstractTrafficStateModel):
         cy_true = torch.reshape(y_true, (batch_size, self.num_nodes, -1))
         cy_true = cy_true.permute(1, 2, 0)
         cy_true = cy_true.reshape(num_nodes, -1)
+        # sy_true = cy_true
         afc_mx = torch.tensor(self.afc_mx.T, device=self.device)
-        # print(afc_mx.shape)
-        # print(cy_true.shape)
+        acs_mx = torch.transpose(acs,0,1)
         cy_true = torch.mm(afc_mx.float(), cy_true.float())
+        sy_true = torch.mm(acs_mx.float(), cy_true.float())
         cy_true = cy_true.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
+        sy_true = sy_true.reshape(batch_size, input_window, self.super_nodes, input_dim)
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
         cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
+        sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
 
         batch_size, input_window, num_nodes, input_dim = y_predicted.shape
         y_predicted_c = torch.reshape(y_true, (batch_size, self.num_nodes, -1))
@@ -708,13 +711,28 @@ class TGCN(AbstractTrafficStateModel):
         y_predicted_c = torch.mm(afc_mx.float(), y_predicted_c.float())
         y_predicted_c = y_predicted_c.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
 
+        loss1,loss2 = self.assign_loss(self.adj_mx1,acs)
+
         loss = 2 * torch.mean(torch.norm(y_true - y_predicted) ** 2 / 2) + torch.mean(
-            torch.norm(cy_true - cy_predicted) ** 2 / 2) + lam * torch.mean(
+            torch.norm(cy_true - cy_predicted) ** 2 / 2) + torch.mean(
+            torch.norm(sy_true - sy_predicted) ** 2 / 2) + lam * torch.mean(
             torch.norm(y_predicted_c - cy_predicted) ** 2 / 2)
         loss /= y_predicted.numel()
         loss = loss + loss1 + loss2
+
         # return loss.masked_mae_torch(y_predicted, y_true, 0)
         return loss
+
+    def assign_loss(self,adj,s):
+        s = s.unsqueeze(0)
+        adj = torch.tensor(adj)
+        link_loss = adj - torch.matmul(s, s.transpose(1, 2))
+        link_loss = torch.norm(link_loss, p=2)
+        link_loss = link_loss / adj.numel()
+
+        ent_loss = (-s * torch.log(s + 1e-15)).sum(dim=-1).mean()
+
+        return link_loss,ent_loss
 
     def predict(self, batch):
         return self.forward(batch)
