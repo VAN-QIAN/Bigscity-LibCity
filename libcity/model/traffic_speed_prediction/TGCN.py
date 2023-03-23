@@ -533,8 +533,8 @@ class TGCNCell(nn.Module):
 
         # print("COARSE input.shape IS {}".format(coarse_input.shape))
 
-        super_input, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=coarse_input, adj=self.adj_mx1,
-                                                             s=self.assMatrix)
+        super_input, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=coarse_input, adj=torch.tensor(self.adj_mx1,device=self._device),
+                                                             s=self.assMatrix.to(device=self._device))
         # acs_mx_t=torch.transpose(self.assMatrix, 0, 1)
         # print("acs_mt shape is {}".format(acs_mx_t.shape))
         # super_input = acs_mx_t@coarse_input #torch.mm(acs_mx_t.float(),coarse_input.float())
@@ -561,7 +561,7 @@ class TGCNCell(nn.Module):
         # print("x0cs shape: {}".format(x0cs.shape))
         x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
         # print(x0cs.shape)
-        adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
+        adj_mx2 = np.transpose(adj_mx2.cpu().detach().numpy(), (1, 2, 0))
         adj_mx2 = adj_mx2.reshape(self.super_nodes,self.super_nodes)
         # print(adj_mx2.shape)
         support = calculate_normalized_laplacian(adj_mx2)
@@ -711,7 +711,7 @@ class TGCN(AbstractTrafficStateModel):
         y_predicted_c = torch.mm(afc_mx.float(), y_predicted_c.float())
         y_predicted_c = y_predicted_c.reshape(batch_size, input_window, self.coarse_nodes, input_dim)
 
-        loss1,loss2 = self.assign_loss(self.adj_mx1,acs)
+        loss1,loss2 = self.assign_loss(torch.tensor(self.adj_mx1,device=self.device),acs)
 
         self._logger.info('link_loss: {0} ent_loss:{1}'.format(loss1,loss2))
 
