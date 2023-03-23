@@ -255,7 +255,7 @@ class TGCNCell(nn.Module):
         c2 = c2.reshape(shape=(-1, self.super_nodes * self.num_units))
         new_state2 = u2 * state2 + (1.0 - u2) * c2
 
-        return new_state, new_state1, new_state2,adj2,self.assMatrix
+        return new_state, new_state1, new_state2,adj2,torch.softmax(self.assMatrix, dim=-1)
 
     def _ggc(self, inputs, state, state1,state2,output_size,adj_mx2 ,bias_start=0.0):
         """
@@ -287,7 +287,7 @@ class TGCNCell(nn.Module):
         coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
 
         # super_input
-        acs_mx = self.assMatrix
+        acs_mx = torch.softmax(self.assMatrix, dim=-1)
         acs_mxt = torch.transpose(acs_mx, 0, 1)
         super_input = torch.mm(acs_mxt.float(), coarse_input.float())
         # super_input = torch.mm(self.afc_mx.float(), super_input.float())
@@ -386,7 +386,7 @@ class TGCNCell(nn.Module):
         coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
 
         #super_input
-        acs_mx = self.assMatrix
+        acs_mx = torch.softmax(self.assMatrix, dim=-1)
         acs_mxt = torch.transpose(acs_mx,0,1)
         super_input = torch.mm(acs_mxt.float(),coarse_input.float())
         # coarse_input = torch.mm(acs_mxt.float(), coarse_input.float())
@@ -533,8 +533,8 @@ class TGCNCell(nn.Module):
 
         # print("COARSE input.shape IS {}".format(coarse_input.shape))
 
-        super_input, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=coarse_input, adj=torch.tensor(self.adj_mx1,device=self._device),
-                                                             s=self.assMatrix.to(device=self._device))
+        # super_input, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=coarse_input, adj=torch.tensor(self.adj_mx1,device=self._device),
+                                                            #  s=self.assMatrix.to(device=self._device))
         # acs_mx_t=torch.transpose(self.assMatrix, 0, 1)
         # print("acs_mt shape is {}".format(acs_mx_t.shape))
         # super_input = acs_mx_t@coarse_input #torch.mm(acs_mx_t.float(),coarse_input.float())
@@ -547,15 +547,19 @@ class TGCNCell(nn.Module):
         # # print(super_input.shape)
 
         coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
-        super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
+        # super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
         # print("super input shape: {}".format(super_input.shape))
         x0fc = torch.cat([coarse_input, state1], dim=2)
+
+        x0cs, adj_mx2, loss1, loss2 = self.dense_diff_pool(x=x0fc, adj=torch.tensor(self.adj_mx1,device=self._device),
+                                                             s=self.assMatrix.to(device=self._device))
+ 
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
         # x0fc = torch.matmul(self.afc_mx.float(), x0fc.float()) # (coarse_nodes, batch*dim)
         # x0fc = x0fc/d
 
-        x0cs = torch.cat([super_input, state2], dim=2)
+        # x0cs = torch.cat([super_input, state2], dim=2)
         # print("x0cs shape: {}".format(x0cs.shape))
         x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
         # print("x0cs shape: {}".format(x0cs.shape))
