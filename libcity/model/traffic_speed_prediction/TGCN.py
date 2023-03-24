@@ -168,7 +168,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([coarse_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mxt.float(),torch.sparse.mm(self.normalized_adj1.float(), x0fc.float()))
+        x1fc = torch.sparse.mm(self.afc_mxt.float(),x0fc)
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X
 
@@ -181,8 +181,7 @@ class TGCNCell(nn.Module):
         x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
 
         weights = self.weigts[(input_size, output_size)]
-        weights1 = self.weigts1[(input_size, output_size)]
-        x1 = torch.matmul(x1, weights)+self.n1*torch.sigmoid(torch.matmul(x1fc,weights1))  # (batch_size * self.num_nodes, output_size)
+        x1 = torch.matmul(x1, weights)+self.n1*torch.sigmoid(torch.matmul(x1fc,weights))  # (batch_size * self.num_nodes, output_size)
 
         biases = self.biases[(output_size,)]
         x1 += biases
@@ -234,7 +233,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([fine_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mx.float(), torch.sparse.mm(self.normalized_adj.float(), x0fc.float()))
+        x1fc = torch.sparse.mm(self.afc_mx.float(), x0fc)
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
@@ -247,9 +246,8 @@ class TGCNCell(nn.Module):
         x1fc = x1fc.reshape(shape=(-1, input_size))  # (batch_size * self.num_nodes, input_size)
 
         weights = self.weigts1[(input_size, output_size)]
-        weights1 = self.weigts[(input_size, output_size)]
         x1 = torch.matmul(x1, weights) + self.n2 * torch.sigmoid(
-            torch.matmul(x1fc, weights1))  # (batch_size * self.coarse_nodes, output_size)
+            torch.matmul(x1fc, weights))  # (batch_size * self.coarse_nodes, output_size)
 
         biases = self.biases1[(output_size,)]
         x1 += biases
