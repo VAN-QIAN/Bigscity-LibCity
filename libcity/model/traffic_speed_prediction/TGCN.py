@@ -168,7 +168,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([coarse_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mxt.float(),x0fc)
+        x1fc = torch.sparse.mm(self.afc_mxt.float(),torch.sparse.mm(self.normalized_adj1.float(), x0fc.float()))
 
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X
 
@@ -234,7 +234,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([fine_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.sparse.mm(self.afc_mx.float(), x0fc)
+        x1fc = torch.sparse.mm(self.afc_mx.float(), torch.sparse.mm(self.normalized_adj.float(), x0fc.float()))
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
