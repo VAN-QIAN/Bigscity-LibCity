@@ -240,24 +240,24 @@ class TGCNCell(nn.Module):
         r = torch.reshape(r, (-1, self.num_nodes * self.num_units))  # (batch_size, self.num_nodes * self.gru_units)
         u = torch.reshape(u, (-1, self.num_nodes * self.num_units))
 
-        c0 = self._ggc(inputs, r * state, r1 * state1, r2*state2,self.num_units,adj2)
+        c0 = self._gcf(inputs, r * state, r1 * state1, r2*state2,self.num_units,adj2)
         c = self.act(c0)
         c = c.reshape(shape=(-1, self.num_nodes * self.num_units))
         new_state = u * state + (1.0 - u) * c
 
-        c1 = self._g2c(inputs, r1 * state1, new_state, self.num_units)  # or new_state?
+        c1 = self._gcc(inputs, r1 * state1, new_state, self.num_units)  # or new_state?
         c1 = self.act(c1)
         c1 = c1.reshape(shape=(-1, self.coarse_nodes * self.num_units))
         new_state1 = u1 * state1 + (1.0 - u1) * c1
 
-        c2 = self._gcsc(inputs, r2 * state2, new_state1,adj2 ,self.num_units)  # or new_state?
+        c2 = self._gcs(inputs, r2 * state2, new_state1,adj2 ,self.num_units)  # or new_state?
         c2 = self.act(c2)
         c2 = c2.reshape(shape=(-1, self.super_nodes * self.num_units))
         new_state2 = u2 * state2 + (1.0 - u2) * c2
 
         return new_state, new_state1, new_state2,adj2,torch.softmax(self.assMatrix, dim=-1)
 
-    def _ggc(self, inputs, state, state1,state2,output_size,adj_mx2 ,bias_start=0.0):
+    def _gcf(self, inputs, state, state1,state2,output_size,adj_mx2 ,bias_start=0.0):
         """
         2nd layer GCN for fine nodes
 
@@ -277,22 +277,23 @@ class TGCNCell(nn.Module):
         batch_size = inputs.shape[0]
         inputs = torch.reshape(inputs, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.dim)
         state = torch.reshape(state, (batch_size, self.num_nodes, -1))  # (batch, self.num_nodes, self.gru_units)
-        state1 = torch.reshape(state1, (batch_size, self.coarse_nodes, -1))
-        state2 = torch.reshape(state2, (batch_size, self.super_nodes, -1))
+        state1 = torch.reshape(state1, (batch_size, self.coarse_nodes, -1)) # (batch, self.coarse_nodes, self.gru_units)
+        state2 = torch.reshape(state2, (batch_size, self.super_nodes, -1)) # (batch, self.super_nodes, self.gru_units)
         inputs_and_state = torch.cat([inputs, state], dim=2)
         input_size = inputs_and_state.shape[2]
 
+
+        # get input for coarse nodes
         coarse_input = inputs.permute(1, 2, 0)
         coarse_input = coarse_input.reshape(self.num_nodes, -1)
         coarse_input = torch.mm(self.afc_mx.float(), coarse_input.float())
 
-        # super_input
+        # get input for super nodes
         acs_mx = torch.softmax(self.assMatrix, dim=-1)
         acs_mxt = torch.transpose(acs_mx, 0, 1)
         super_input = torch.mm(acs_mxt.float(), coarse_input.float())
-        # super_input = torch.mm(self.afc_mx.float(), super_input.float())
-        # print("super_input.shape is{}".format(super_input.shape))
 
+        # reshape
         coarse_input = torch.reshape(coarse_input, (batch_size, self.coarse_nodes, -1))
         super_input = torch.reshape(super_input, (batch_size, self.super_nodes, -1))
 
@@ -302,33 +303,23 @@ class TGCNCell(nn.Module):
         x0 = x.permute(1, 2, 0)  # (num_nodes, dim+gru_units, batch)
         x0 = x0.reshape(shape=(self.num_nodes, -1))
 
+        # concat coarse input with gru state of coarse nodes
         x0fc = torch.cat([coarse_input, state1], dim=2)
-        x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
+        x0fc = x0fc.permute(1, 2, 0)  # (coarse_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
 
+        # concat super input with gru state of super nodes
         x0cs = torch.cat([super_input, state2], dim=2)
-        # print("x0cs {}: ".format(x0cs.shape))
-        # print("state2 {}: ".format(state2.shape))
-        x0cs = x0cs.permute(1, 2, 0)  # (num_nodes, dim, batch)
-        # print("x0cs {}: ".format(x0cs.shape))
+        x0cs = x0cs.permute(1, 2, 0)  # (super_nodes, dim, batch)
         x0cs = x0cs.reshape(shape=(self.super_nodes, -1))  # (super_nodes, batch*dim)
-        # print("x0cs {}: ".format(x0cs.shape))
 
-        # adj_mx2 = np.transpose(adj_mx2.detach().numpy(), (1, 2, 0))
-        # adj_mx2 = adj_mx2.reshape(self.super_nodes, self.super_nodes)
-        # print(adj_mx2.shape)
-        # adj_mx2 = adj_mx2.cpu().numpy()
-        #
-        #
-        # support = calculate_normalized_laplacian(adj_mx2)
-        # adj2 = self._build_sparse_matrix(support,device=self._device)
+        # get the adj_mx for the super nodes
+        adj2 = adj_mx2 # didn't use
 
-        adj2 = adj_mx2
-
-
+        # use the transpose of assign matrix to align the shape with fine nodes
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X
-        x1fc = torch.mm(self.afc_mxt.float(), x0fc.float())
-        x1cs = torch.mm(self.afc_mxt.float(),(torch.mm(acs_mx.float(), x0cs.float())))
+        x1fc = torch.mm(self.afc_mxt.float(), torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())) #
+        x1cs = torch.mm(self.afc_mxt.float(),(torch.mm(acs_mx.float(),(torch.mm(adj2.float(),x0cs.float())))))
 
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
@@ -360,7 +351,7 @@ class TGCNCell(nn.Module):
         x1 = x1.reshape(shape=(batch_size, self.num_nodes, output_size))
         return x1
 
-    def _gcsc(self, inputs, state, state1,adj2 ,output_size,bias_start=0.0):
+    def _gcs(self, inputs, state, state1,adj2 ,output_size,bias_start=0.0):
         """
         2nd layer GCN for super nodes
 
@@ -406,7 +397,7 @@ class TGCNCell(nn.Module):
 
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
-        x0fc = torch.mm(acs_mxt.float(), x0fc.float())
+        x0fc = torch.mm(acs_mxt.float(), (torch.sparse.mm(self.normalized_adj1.float(),x0fc.float())))
 
         x1fc = x0fc
         # adj2
@@ -431,7 +422,7 @@ class TGCNCell(nn.Module):
         x1 = x1.reshape(shape=(batch_size, self.super_nodes, output_size))
         return x1
 
-    def _g2c(self, inputs, state, state1,output_size, bias_start=0.0):
+    def _gcc(self, inputs, state, state1,output_size, bias_start=0.0):
         """
         2nd layer GCN for the coarse nodes
 
@@ -472,7 +463,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([fine_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.mm(self.afc_mx.float(), x0fc)
+        x1fc = torch.mm(self.afc_mx.float(), torch.sparse.mm(self.normalized_adj.float(), x0fc.float()))
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
