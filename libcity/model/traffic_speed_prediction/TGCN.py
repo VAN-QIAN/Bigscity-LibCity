@@ -318,8 +318,8 @@ class TGCNCell(nn.Module):
 
         # use the transpose of assign matrix to align the shape with fine nodes
         x1 = torch.sparse.mm(self.normalized_adj.float(), x0.float())  # A * X
-        x1fc = torch.mm(self.afc_mxt.float(), torch.sparse.mm(self.normalized_adj1.float(), x0fc.float())) #
-        x1cs = torch.mm(self.afc_mxt.float(),(torch.mm(acs_mx.float(),(torch.mm(adj2.float(),x0cs.float())))))
+        x1fc = torch.mm(self.afc_mxt.float(), x0fc.float()) #
+        x1cs = torch.mm(self.afc_mxt.float(),(torch.mm(acs_mx.float(),x0cs.float())))
 
         x1 = x1.reshape(shape=(self.num_nodes, input_size, batch_size))
         x1 = x1.permute(2, 0, 1)  # (batch_size, self.num_nodes, input_size)
@@ -397,7 +397,7 @@ class TGCNCell(nn.Module):
 
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.coarse_nodes, -1))  # (coarse_nodes, batch*dim)
-        x0fc = torch.mm(acs_mxt.float(), (torch.sparse.mm(self.normalized_adj1.float(),x0fc.float())))
+        x0fc = torch.mm(acs_mxt.float(),x0fc.float())
 
         x1fc = x0fc
         # adj2
@@ -463,7 +463,7 @@ class TGCNCell(nn.Module):
         x0fc = torch.cat([fine_input, state1], dim=2)
         x0fc = x0fc.permute(1, 2, 0)  # (num_nodes, dim, batch)
         x0fc = x0fc.reshape(shape=(self.num_nodes, -1))  # (coarse_nodes, batch*dim)
-        x1fc = torch.mm(self.afc_mx.float(), torch.sparse.mm(self.normalized_adj.float(), x0fc.float()))
+        x1fc = torch.mm(self.afc_mx.float(), x0fc.float())
 
         x1 = torch.sparse.mm(self.normalized_adj1.float(), x0.float())  # A * X
 
