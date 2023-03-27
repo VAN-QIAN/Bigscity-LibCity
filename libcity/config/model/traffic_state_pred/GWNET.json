@@ -8,7 +8,7 @@
   "adjtype": "doubletransition",
   "bidir_adj_mx": true,
   "randomadj": true,
-  "aptonly": true,
+  "aptonly": false,
   "kernel_size": 2,
   "nhid": 32,
   "residual_channels": 32,
