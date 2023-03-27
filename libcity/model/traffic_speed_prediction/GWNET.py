@@ -122,8 +122,8 @@ class HGCN(nn.Module):
         self.mlp = Linear(c_in, c_out)
         self.dropout = dropout
         self.order = order
-        self.init_params()
-        # self.acs = torch.softmax(acs,dim=-1)
+        # self.init_params()
+        self.acs = torch.softmax(acs,dim=-1)
 
     def init_params(self):
         assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self._device))
@@ -267,10 +267,10 @@ class GWNET(AbstractTrafficStateModel):
         self.skip_convs = nn.ModuleList()
         self.bn = nn.ModuleList()
         self.gconv = nn.ModuleList()
-        assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device))
+        assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device),requires_grad=True)
         self.register_parameter(name='assMatrix', param=assMatrix)
-        self.assMatrix = assMatrix #torch.softmax(assMatrix.float(), dim=-1)
-        self.acs = self.assMatrix.cpu().detach().numpy()
+        self.acs = assMatrix #torch.softmax(assMatrix.float(), dim=-1)
+        # self.acs = self.assMatrix.cpu().detach().numpy()
         self.start_conv = nn.Conv2d(in_channels=self.feature_dim,
                                     out_channels=self.residual_channels,
                                     kernel_size=(1, 1))
@@ -336,7 +336,7 @@ class GWNET(AbstractTrafficStateModel):
                 receptive_field += additional_scope
                 additional_scope *= 2
                 if self.gcn_bool:
-                    self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc,self.assMatrix,self.super_nodes,self.coarse_nodes,device=self.device
+                    self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc,self.acs,self.super_nodes,self.coarse_nodes,device=self.device
                                           , support_len=self.supports_len))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
