@@ -99,87 +99,11 @@ class GCN(nn.Module):
         h = F.dropout(h, self.dropout, training=self.training)
         return h
 
-class HGCN(nn.Module):
-    def __init__(self, c_in, c_out, dropout,afc,acs,n1=0.8,n2=0.2,n3=0.2,n4=0.1,n5=0.1 ,support_len=3, order=2):
-        super(HGCN, self).__init__()
-        # c_in = (order * support_len + 1) * c_in
-        self.fgcn = GCN(c_in, c_out, dropout, support_len)
-        self.cgcn = GCN(c_in, c_out, dropout, support_len)
-        self.sgcn = GCN(c_in, c_out, dropout, support_len)
-        self.afc = afc
-        self.acs = acs
-        self.n1 = n1
-        self.n2 = n2
-        self.n3 = n3
-        self.n4 = n4
-        self.n5 = n5
-
-        self.nconv = NConv()
-        self.mlp = Linear(c_in, c_out)
-        self.dropout = dropout
-        self.order = order
-
-    def forward(self, x, support):
-        out = [x]
-        # h0 = self.fgcn(x,support)
-        # h0c = self.cgcn(x, support)
-        # h0s = self.sgcn(x, support)
-        for a in support:
-            # fine-grained
-            # ac = self.afc.trans @ a @ self.afc
-            # xc = self.afc @ x
-            x1 = self.fgcn.nconv(x,a) # +self.n1 * self.cgcn(xc,ac)
-            out.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.fgcn.nconv(x1, a)
-                out.append(x2)
-                x1 = x2
-        h = torch.cat(out, dim=1)
-        h = self.fgcn.mlp(h)
-        hf = F.dropout(h, self.dropout, training=self.training)
-
-        for a in support:
-            # coarse-grained
-            a = self.afc.T @ a @ self.afc
-            x = self.afc @ x
-            x1 = self.cgcn.nconv(x,a)
-            out.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.nconv(x1, a)
-                out.append(x2)
-                x1 = x2
-        h = torch.cat(out, dim=1)
-        h = self.mlp(h)
-        hc = F.dropout(h, self.dropout, training=self.training)
-
-        for a in support:
-            # super-grained
-            a = self.acs.T @ self.afc.T @ a @ self.afc @ self.acs
-            x = self.acs @ self.afc @ x
-            x1 = self.fgcn.nconv(x,a)+torch.sigmoid(hc)
-            out.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.nconv(x1, a)
-                out.append(x2)
-                x1 = x2
-        h = torch.cat(out, dim=1)
-        h = self.mlp(h)
-        hs = F.dropout(h, self.dropout, training=self.training)
-
-        hf = hf+self.n1*self.afc*torch.sigmoid(hc)+self.n2*self.afc*self.acs*torch.sigmoid(hs)
-        hc = hc+self.n3*self.afc.T*torch.sigmoid(hf)
-        hs = hs+self.n4*self.acs.T*self.afc.T*torch.sigmoid(hf)+self.n4*self.acs.T*torch.sigmoid(hc)
-
-        return hf,hc,hs
-
 
 class GWNET(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
-        self.afc = data_feature.get('afc_mx')
         self.num_nodes = data_feature.get('num_nodes', 1)
-        self.coarse_nodes = len(self.afc[0])
-        self.super_nodes = data_feature.get('super_nodes', 10)
         self.feature_dim = data_feature.get('feature_dim', 2)
         super().__init__(config, data_feature)
 
@@ -217,9 +141,6 @@ class GWNET(AbstractTrafficStateModel):
         self.skip_convs = nn.ModuleList()
         self.bn = nn.ModuleList()
         self.gconv = nn.ModuleList()
-        assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device))
-        self.register_parameter(name='assMatrix', param=assMatrix)
-        self.assMatrix = assMatrix
         self.start_conv = nn.Conv2d(in_channels=self.feature_dim,
                                     out_channels=self.residual_channels,
                                     kernel_size=(1, 1))
@@ -284,7 +205,7 @@ class GWNET(AbstractTrafficStateModel):
                 receptive_field += additional_scope
                 additional_scope *= 2
                 if self.gcn_bool:
-                    self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.afc,self.assMatrix,
+                    self.gconv.append(GCN(self.dilation_channels, self.residual_channels,
                                           self.dropout, support_len=self.supports_len))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
@@ -357,7 +278,7 @@ class GWNET(AbstractTrafficStateModel):
                 if self.addaptadj:
                     x = self.gconv[i](x, new_supports)
                 else:
-                    x,xc,xs = self.gconv[i](x, self.supports)
+                    x = self.gconv[i](x, self.supports)
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             else:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
