@@ -100,7 +100,7 @@ class GCN(nn.Module):
         return h
 
 class HGCN(nn.Module):
-    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.1,n3=0.2,n4=0.1,n5=0.2 ,support_len=3, order=2):
+    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.1 ,support_len=3, order=2):
         super(HGCN, self).__init__()
         # c_in = (order * support_len + 1) * c_in
         self.fgcn = GCN(c_in, c_out, dropout, support_len)
@@ -212,7 +212,7 @@ class HGCN(nn.Module):
 
         hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc)+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)+self.n4*torch.sigmoid(acs.t().float()@hc)
+        hs = hs+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)+self.n5*torch.sigmoid(acs.t().float()@hc)
 
         return hf,hc,hs,acs
 
