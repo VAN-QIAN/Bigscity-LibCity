@@ -257,7 +257,7 @@ class TrafficStateExecutor(AbstractExecutor):
             # cy_preds = []
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
-                output = self.model.predict(batch) #,coutput
+                output,acs = self.model.predict(batch) #,coutput
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 batch_size, input_window, num_nodes, input_dim = y_true.shape
                 # cy_true = torch.reshape(y_true, (batch_size, num_nodes, -1))

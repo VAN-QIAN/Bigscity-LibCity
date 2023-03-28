@@ -430,11 +430,11 @@ class GWNET(AbstractTrafficStateModel):
         x = F.relu(self.end_conv_1(x))
         # (batch_size, end_channels, num_nodes, self.output_dim)
         x = self.end_conv_2(x)
-        link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
-        self._logger.info('link_loss: %.4f'%link_loss)
-        self._logger.info('ent_loss: %.4f'%(ent_loss))
+        # link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
+        # self._logger.info('link_loss: %.4f'%link_loss)
+        # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x#,xc,xs,learned_acsmx[-1]
+        return x,learned_acsmx[-1]#,xc,xs
     
     def assLoss(self,adj,s):
         adj = torch.from_numpy(adj)
@@ -469,12 +469,15 @@ class GWNET(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_predicted = self.predict(batch)
+        y_predicted,acs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
-        return loss.masked_mae_torch(y_predicted, y_true, 0)
+        link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,acs)
+        self._logger.info('link_loss: %.4f'%link_loss)
+        self._logger.info('ent_loss: %.4f'%(ent_loss))
+        return loss.masked_mae_torch(y_predicted, y_true, 0)+link_loss+ent_loss
 
     def predict(self, batch):
         return self.forward(batch)
