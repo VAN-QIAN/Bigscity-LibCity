@@ -100,7 +100,7 @@ class GCN(nn.Module):
         return h
 
 class HGCN(nn.Module):
-    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.1,n5=0.1 ,support_len=3, order=2):
+    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.1,n3=0.2,n4=0.1,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
         # c_in = (order * support_len + 1) * c_in
         self.fgcn = GCN(c_in, c_out, dropout, support_len)
@@ -123,7 +123,7 @@ class HGCN(nn.Module):
         self.dropout = dropout
         self.order = order
         # self.init_params()
-        self.acs = torch.softmax(acs,dim=-1)
+        acs = torch.softmax(acs,dim=-1)
 
     def init_params(self):
         assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self._device))
@@ -144,10 +144,10 @@ class HGCN(nn.Module):
 
         return link_loss, ent_loss
 
-    def forward(self, x, support):
+    def forward(self, x, support,acs):
         out = [x]
         cout = [self.afc.t().float() @ x]
-        sout = [self.acs.t().float() @ self.afc.t().float() @ x]
+        sout = [acs.t().float() @ self.afc.t().float() @ x]
         # h0 = self.fgcn(x,support)
         # h0c = self.cgcn(x, support)
         # h0s = self.sgcn(x, support)
@@ -191,15 +191,15 @@ class HGCN(nn.Module):
         for a in support:
             # super-grained
             # ac = self.afc.t() @ a @ self.afc
-            asc = self.acs.t().float() @ self.afc.t().float() @ a @ self.afc.float() @ self.acs.float()
-            xs = self.acs.t().float() @ self.afc.t().float() @ x
+            asc = acs.t().float() @ self.afc.t().float() @ a @ self.afc.float() @ acs.float()
+            xs = acs.t().float() @ self.afc.t().float() @ x
             x1 = self.fgcn.nconv(xs,asc)
             sout.append(x1)
             for k in range(2, self.order + 1):
                 x2 = self.fgcn.nconv(x1, asc)
                 sout.append(x2)
                 x1 = x2
-            # link_loss,ent_loss = self.assLoss(ac,self.acs)
+            # link_loss,ent_loss = self.assLoss(ac,acs)
             # self._logger.info('link_loss: %.4f'%link_loss)
             # self._logger.info('link_loss: %.4f'%ent_loss)
         hs = torch.cat(sout, dim=1)
@@ -210,11 +210,11 @@ class HGCN(nn.Module):
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
 
-        hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc)+self.n2*torch.sigmoid(self.afc.float()@self.acs.float()@hs)
+        hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc)+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(self.acs.t().float()@self.afc.t().float()@hf)+self.n4*torch.sigmoid(self.acs.t().float()@hc)
+        hs = hs+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)+self.n4*torch.sigmoid(acs.t().float()@hc)
 
-        return hf,hc,hs,self.acs
+        return hf,hc,hs,acs
 
 
 class GWNET(AbstractTrafficStateModel):
@@ -411,7 +411,7 @@ class GWNET(AbstractTrafficStateModel):
                     x = self.gconv[i](x, new_supports)
                 else:
                     # self._logger.info('gconv')
-                    x,xc,xs,learned_acs = self.gconv[i](x, self.supports)
+                    x,xc,xs,learned_acs = self.gconv[i](x, self.supports ,torch.softmax(self.acs,dim=-1))
                     learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
@@ -434,7 +434,7 @@ class GWNET(AbstractTrafficStateModel):
         self._logger.info('link_loss: %.4f'%link_loss)
         self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs,learned_acsmx[-1]
+        return x#,xc,xs,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         adj = torch.from_numpy(adj)
@@ -469,8 +469,8 @@ class GWNET(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_predicted,cy_predicted,sy_predicted,acs = self.predict(batch)
-        # print('y_true', y_true.shape)
+        y_predicted = self.predict(batch)
+        # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
