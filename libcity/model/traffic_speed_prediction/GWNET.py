@@ -110,7 +110,7 @@ class HGCN(nn.Module):
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
         self._device = device
-        self.afc = torch.from_numpy(afc).to(device=self._device)
+        self.afc = torch.from_numpy(afc).detach().to(device=self._device)
 
         self.n1 = n1
         self.n2 = n2
@@ -146,8 +146,8 @@ class HGCN(nn.Module):
 
     def forward(self, x, support,acs):
         out = [x]
-        cout = [self.afc.t().float() @ x]
-        sout = [acs.t().float() @ self.afc.t().float() @ x]
+        cout = [self.afc.detach().t().float() @ x]
+        sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         # h0 = self.fgcn(x,support)
         # h0c = self.cgcn(x, support)
         # h0s = self.sgcn(x, support)
@@ -170,11 +170,11 @@ class HGCN(nn.Module):
         for a in support:
             # coarse-grained
             # print(a.shape)
-            ac = self.afc.t().float() @ a @ self.afc.float()
+            ac = self.afc.detach().t().float() @ a @ self.afc.detach().float()
             # print('ac '+str(ac.shape))
             # print('afc_t '+str(self.afc.t().shape))
             # print(x.shape)
-            xc = self.afc.t().float() @ x
+            xc = self.afc.detach().t().float() @ x
             # print('xc '+str(xc.shape))
             x1 = self.cgcn.nconv(xc,ac)
             # print('x1 '+str(x1.shape))
@@ -191,8 +191,8 @@ class HGCN(nn.Module):
         for a in support:
             # super-grained
             # ac = self.afc.t() @ a @ self.afc
-            asc = acs.t().float() @ self.afc.t().float() @ a @ self.afc.float() @ acs.float()
-            xs = acs.t().float() @ self.afc.t().float() @ x
+            asc = acs.t().float() @ self.afc.detach().t().float() @ a @ self.afc.detach().float() @ acs.float()
+            xs = acs.t().float() @ self.afc.detach().t().float() @ x
             x1 = self.fgcn.nconv(xs,asc)
             sout.append(x1)
             for k in range(2, self.order + 1):
@@ -210,8 +210,8 @@ class HGCN(nn.Module):
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
 
-        hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
-        hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
+        hf = hf+self.n1*torch.sigmoid(self.afc.detach().float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
+        hc = hc+self.n3*torch.sigmoid(self.afc.detach().t().float()@hf)
         hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
 
         return hf,hc,hs#,acs
@@ -355,8 +355,8 @@ class GWNET(AbstractTrafficStateModel):
         inputs = batch['X']  # (batch_size, input_window, num_nodes, feature_dim)
         inputs = inputs.transpose(1, 3)  # (batch_size, feature_dim, num_nodes, input_window)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))  # (batch_size, feature_dim, num_nodes, input_window+1)
-        cinputs = self.afc_mx.t().float() @ inputs
-        sinputs = self.acs.t().float() @ cinputs
+        cinputs = self.afc_mx.detach().t().float() @ inputs
+        sinputs = self.acs.detach().t().float() @ cinputs
 
         in_len = inputs.size(3)
         if in_len < self.receptive_field:
@@ -540,7 +540,7 @@ class GWNET(AbstractTrafficStateModel):
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
-        cy_true = self.afc_mx.T.float() @ y_true
+        cy_true = self.afc_mx.detach().T.float() @ y_true
         sy_true = torch.softmax(self.acs.detach(),dim=-1).t().float() @ cy_true
 
 
