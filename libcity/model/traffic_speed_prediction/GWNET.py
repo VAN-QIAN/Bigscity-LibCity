@@ -100,7 +100,7 @@ class GCN(nn.Module):
         return h
 
 class HGCN(nn.Module):
-    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.1 ,support_len=3, order=2):
+    def __init__(self, c_in, c_out, dropout,afc,acs,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
         # c_in = (order * support_len + 1) * c_in
         self.fgcn = GCN(c_in, c_out, dropout, support_len)
@@ -123,7 +123,7 @@ class HGCN(nn.Module):
         self.dropout = dropout
         self.order = order
         # self.init_params()
-        acs = torch.softmax(acs,dim=-1)
+        # acs = torch.softmax(acs,dim=-1)
 
     def init_params(self):
         assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self._device))
@@ -210,11 +210,11 @@ class HGCN(nn.Module):
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
 
-        hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc)+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
+        hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)+self.n5*torch.sigmoid(acs.t().float()@hc)
+        hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
 
-        return hf,hc,hs,acs
+        return hf,hc,hs#,acs
 
 
 class GWNET(AbstractTrafficStateModel):
@@ -245,7 +245,7 @@ class GWNET(AbstractTrafficStateModel):
         self.output_window = config.get('output_window', 1)
         self.output_dim = self.data_feature.get('output_dim', 1)
         self.device = config.get('device', torch.device('cpu'))
-        self.afc_mx = torch.Tensor.from_numpy(self.afc).to(device=self.device)
+        self.afc_mx = torch.from_numpy(self.afc).to(device=self.device)
 
         self.n1 = config.get('n1',0.8)
         self.n2 = config.get('n2',0.1)
@@ -268,9 +268,9 @@ class GWNET(AbstractTrafficStateModel):
         self.skip_convs = nn.ModuleList()
         self.bn = nn.ModuleList()
         self.gconv = nn.ModuleList()
-        assMatrix = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device),requires_grad=True)
-        self.register_parameter(name='assMatrix', param=assMatrix)
-        self.acs = assMatrix #torch.softmax(assMatrix.float(), dim=-1)
+        self.acs = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device),requires_grad=True)
+        # self.register_parameter(name='assMatrix', param=assMatrix)
+        # self.acs = assMatrix #torch.softmax(assMatrix.float(), dim=-1)
         # self.acs = self.assMatrix.cpu().detach().numpy()
         self.start_conv = nn.Conv2d(in_channels=self.feature_dim,
                                     out_channels=self.residual_channels,
@@ -468,8 +468,8 @@ class GWNET(AbstractTrafficStateModel):
                     x = self.gconv[i](x, new_supports)
                 else:
                     # self._logger.info('gconv')
-                    x,xc,xs,learned_acs = self.gconv[i](x, self.supports ,torch.softmax(self.acs,dim=-1))
-                    learned_acsmx.append(learned_acs)
+                    x,xc,xs = self.gconv[i](x, self.supports ,torch.softmax(self.acs,dim=-1))
+                    # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             else:
@@ -501,7 +501,7 @@ class GWNET(AbstractTrafficStateModel):
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs,learned_acsmx[-1]
+        return x,xc,xs #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         adj = torch.from_numpy(adj)
@@ -536,25 +536,25 @@ class GWNET(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_predicted,cy_predicted,sy_predicted,acs = self.predict(batch)
+        y_predicted,cy_predicted,sy_predicted = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
-        cy_true = self.afc_mx.T @ y_true
-        sy_true = torch.softmax(acs,dim=-1).t() @ cy_true
+        cy_true = self.afc_mx.T.float() @ y_true
+        sy_true = torch.softmax(self.acs.detach(),dim=-1).t().float() @ cy_true
 
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
         cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
         sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
-        link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,acs)
+        link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,torch.softmax(self.acs,dim=-1))
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
-        train_loss = loss_f + loss_c + loss_s
-        self._logger.info('link_loss: {.4f} ent_loss:{.4f}'.format(link_loss,ent_loss))
-        self._logger.info('fine_loss: {.4f} coarse_loss:{.4f} super_loss:{.4f}'.format(loss_f,loss_c,loss_s))
-        return train_loss
+        # train_loss = loss_f + loss_c + loss_s
+        self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
+        self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
+        return loss_f+ loss_c + loss_s
 
     def predict(self, batch):
         return self.forward(batch)
