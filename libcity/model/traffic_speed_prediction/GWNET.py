@@ -245,6 +245,7 @@ class GWNET(AbstractTrafficStateModel):
         self.output_window = config.get('output_window', 1)
         self.output_dim = self.data_feature.get('output_dim', 1)
         self.device = config.get('device', torch.device('cpu'))
+        self.afc_mx = torch.Tensor.from_numpy(self.afc).to(device=self.device)
 
         self.n1 = config.get('n1',0.8)
         self.n2 = config.get('n2',0.1)
@@ -354,14 +355,27 @@ class GWNET(AbstractTrafficStateModel):
         inputs = batch['X']  # (batch_size, input_window, num_nodes, feature_dim)
         inputs = inputs.transpose(1, 3)  # (batch_size, feature_dim, num_nodes, input_window)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))  # (batch_size, feature_dim, num_nodes, input_window+1)
+        cinputs = self.afc_mx.t().float() @ inputs
+        sinputs = self.acs.t().float() @ cinputs
 
         in_len = inputs.size(3)
         if in_len < self.receptive_field:
             x = nn.functional.pad(inputs, (self.receptive_field - in_len, 0, 0, 0))
+            xc = nn.functional.pad(cinputs, (self.receptive_field - in_len, 0, 0, 0))
+            xs = nn.functional.pad(sinputs, (self.receptive_field - in_len, 0, 0, 0))
         else:
             x = inputs
+            xc = cinputs
+            xs = sinputs
+
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
+
+        xc = self.start_conv(xc)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_c = 0
+
+        xs = self.start_conv(xs)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_c = 0
 
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
@@ -383,6 +397,8 @@ class GWNET(AbstractTrafficStateModel):
             # (dilation, init_dilation) = self.dilations[i]
             # residual = dilation_func(x, dilation, init_dilation, i)
             residual = x
+            residual_c = xc
+            residual_s = xs
             # (batch_size, residual_channels, num_nodes, self.receptive_field)
             # dilated convolution
             filter = self.filter_convs[i](residual)
@@ -404,6 +420,47 @@ class GWNET(AbstractTrafficStateModel):
                 skip = 0
             skip = s + skip
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+
+            # course-grained inputs
+            filter_c = self.filter_convs[i](residual_c)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            filter_c = torch.tanh(filter_c)
+            gate_c = self.gate_convs[i](residual_c)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            gate_c = torch.sigmoid(gate_c)
+            xc = filter_c * gate_c
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # parametrized skip connection
+            sc = xc
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            sc = self.skip_convs[i](sc)
+            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            try:
+                skip_c = skip_c[:, :, :, -sc.size(3):]
+            except(Exception):
+                skip_c = 0
+            skip_c = sc + skip_c
+
+            # super-grained inputs
+            filter_s = self.filter_convs[i](residual_s)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            filter_s = torch.tanh(filter_s)
+            gate_s = self.gate_convs[i](residual_s)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            gate_s = torch.sigmoid(gate_s)
+            xs = filter_s * gate_s
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # parametrized skip connection
+            ss = xs
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            ss = self.skip_convs[i](ss)
+            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            try:
+                skip_s = skip_s[:, :, :, -ss.size(3):]
+            except(Exception):
+                skip_s = 0
+            skip_s = ss + skip_s
+
             if self.gcn_bool and self.supports is not None:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
                 if self.addaptadj:
@@ -422,19 +479,29 @@ class GWNET(AbstractTrafficStateModel):
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
             x = x + residual[:, :, :, -x.size(3):]
+            xc = xc + residual_c[:, :, :, -xc.size(3):]
+            xs = xs + residual_s[:, :, :, -xs.size(3):]
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
+            xc = self.bn[i](xc)
+            xs = self.bn[i](xs)
         x = F.relu(skip)
+        xc = F.relu(skip_c)
+        xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
+        xc = F.relu(self.end_conv_1(xc))
+        xs = F.relu(self.end_conv_1(xs))
         # (batch_size, end_channels, num_nodes, self.output_dim)
         x = self.end_conv_2(x)
+        xc = self.end_conv_2(xc)
+        xs = self.end_conv_2(xs)
         # link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,learned_acsmx[-1]#,xc,xs
+        return x,xc,xs,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         adj = torch.from_numpy(adj)
@@ -469,15 +536,25 @@ class GWNET(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_predicted,acs = self.predict(batch)
+        y_predicted,cy_predicted,sy_predicted,acs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
+        cy_true = self.afc_mx.T @ y_true
+        sy_true = torch.softmax(acs,dim=-1).t() @ cy_true
+
+
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
+        cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
+        sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,acs)
-        self._logger.info('link_loss: %.4f'%link_loss)
-        self._logger.info('ent_loss: %.4f'%(ent_loss))
-        return loss.masked_mae_torch(y_predicted, y_true, 0)+link_loss+ent_loss
+        loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
+        loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
+        loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
+        train_loss = loss_f + loss_c + loss_s
+        self._logger.info('link_loss: {.4f} ent_loss:{.4f}'.format(link_loss,ent_loss))
+        self._logger.info('fine_loss: {.4f} coarse_loss:{.4f} super_loss:{.4f}'.format(loss_f,loss_c,loss_s))
+        return train_loss
 
     def predict(self, batch):
         return self.forward(batch)
