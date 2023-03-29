@@ -119,7 +119,7 @@ class HGCN(nn.Module):
         self.n5 = n5
 
         # self.nconv = NConv()
-        self.mlp = Linear(c_in, c_out)
+        # self.mlp = Linear(c_in, c_out)
         self.dropout = dropout
         self.order = order
         # self.init_params()
