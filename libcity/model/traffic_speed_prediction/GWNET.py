@@ -105,7 +105,7 @@ class HGCN(nn.Module):
         # c_in = (order * support_len + 1) * c_in
         self.fgcn = GCN(c_in, c_out, dropout, support_len)
         self.cgcn = GCN(c_in, c_out, dropout, support_len)
-        self.sgcn = GCN(c_in, c_out, dropout, support_len)
+        # self.sgcn = GCN(c_in, c_out, dropout, support_len)
         
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
@@ -147,7 +147,7 @@ class HGCN(nn.Module):
     def forward(self, x, support,acs):
         out = [x]
         cout = [self.afc.detach().t().float() @ x]
-        sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
+        # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         # h0 = self.fgcn(x,support)
         # h0c = self.cgcn(x, support)
         # h0s = self.sgcn(x, support)
@@ -188,23 +188,23 @@ class HGCN(nn.Module):
         hc= self.cgcn.mlp(hc)
         hc = F.dropout(hc, self.dropout, training=self.training)
 
-        for a in support:
-            # super-grained
-            # ac = self.afc.t() @ a @ self.afc
-            asc = acs.t().float() @ self.afc.detach().t().float() @ a @ self.afc.detach().float() @ acs.float()
-            xs = acs.t().float() @ self.afc.detach().t().float() @ x
-            x1 = self.fgcn.nconv(xs,asc)
-            sout.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.fgcn.nconv(x1, asc)
-                sout.append(x2)
-                x1 = x2
-            # link_loss,ent_loss = self.assLoss(ac,acs)
-            # self._logger.info('link_loss: %.4f'%link_loss)
-            # self._logger.info('link_loss: %.4f'%ent_loss)
-        hs = torch.cat(sout, dim=1)
-        hs = self.sgcn.mlp(hs)
-        hs = F.dropout(hs, self.dropout, training=self.training)
+        # for a in support:
+        #     # super-grained
+        #     # ac = self.afc.t() @ a @ self.afc
+        #     asc = acs.t().float() @ self.afc.detach().t().float() @ a @ self.afc.detach().float() @ acs.float()
+        #     xs = acs.t().float() @ self.afc.detach().t().float() @ x
+        #     x1 = self.fgcn.nconv(xs,asc)
+        #     sout.append(x1)
+        #     for k in range(2, self.order + 1):
+        #         x2 = self.fgcn.nconv(x1, asc)
+        #         sout.append(x2)
+        #         x1 = x2
+        #     # link_loss,ent_loss = self.assLoss(ac,acs)
+        #     # self._logger.info('link_loss: %.4f'%link_loss)
+        #     # self._logger.info('link_loss: %.4f'%ent_loss)
+        # hs = torch.cat(sout, dim=1)
+        # hs = self.sgcn.mlp(hs)
+        # hs = F.dropout(hs, self.dropout, training=self.training)
 
         # print('hf '+str(hf.shape))
         # print('hc '+str(hc.shape))
@@ -212,9 +212,9 @@ class HGCN(nn.Module):
 
         hf = hf+self.n1*torch.sigmoid(self.afc.detach().float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.detach().t().float()@hf)
-        hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        # hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
 
-        return hf,hc,hs#,acs
+        return hf,hc#,hs#,acs
 
 
 class GWNET(AbstractTrafficStateModel):
@@ -441,25 +441,25 @@ class GWNET(AbstractTrafficStateModel):
                 skip_c = 0
             skip_c = sc + skip_c
 
-            # super-grained inputs
-            filter_s = self.filter_convs[i](residual_s)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            filter_s = torch.tanh(filter_s)
-            gate_s = self.gate_convs[i](residual_s)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            gate_s = torch.sigmoid(gate_s)
-            xs = filter_s * gate_s
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # parametrized skip connection
-            ss = xs
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            ss = self.skip_convs[i](ss)
-            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip_s = skip_s[:, :, :, -ss.size(3):]
-            except(Exception):
-                skip_s = 0
-            skip_s = ss + skip_s
+            # # super-grained inputs
+            # filter_s = self.filter_convs[i](residual_s)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # filter_s = torch.tanh(filter_s)
+            # gate_s = self.gate_convs[i](residual_s)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # gate_s = torch.sigmoid(gate_s)
+            # xs = filter_s * gate_s
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # # parametrized skip connection
+            # ss = xs
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # ss = self.skip_convs[i](ss)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip_s = skip_s[:, :, :, -ss.size(3):]
+            # except(Exception):
+            #     skip_s = 0
+            # skip_s = ss + skip_s
 
             if self.gcn_bool and self.supports is not None:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -467,8 +467,8 @@ class GWNET(AbstractTrafficStateModel):
                     self._logger.info('adapt')
                     x = self.gconv[i](x, new_supports)
                 else:
-                    # self._logger.info('gconv')
-                    x,xc,xs = self.gconv[i](x, self.supports ,torch.softmax(self.acs,dim=-1))
+                    # self._logger.info('gconv') ,xs
+                    x,xc = self.gconv[i](x, self.supports ,torch.softmax(self.acs,dim=-1))
                     # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
@@ -480,28 +480,28 @@ class GWNET(AbstractTrafficStateModel):
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
             x = x + residual[:, :, :, -x.size(3):]
             xc = xc + residual_c[:, :, :, -xc.size(3):]
-            xs = xs + residual_s[:, :, :, -xs.size(3):]
+            # xs = xs + residual_s[:, :, :, -xs.size(3):]
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
             xc = self.bn[i](xc)
-            xs = self.bn[i](xs)
+            # xs = self.bn[i](xs)
         x = F.relu(skip)
         xc = F.relu(skip_c)
-        xs = F.relu(skip_s)
+        # xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
         xc = F.relu(self.end_conv_1(xc))
-        xs = F.relu(self.end_conv_1(xs))
+        # xs = F.relu(self.end_conv_1(xs))
         # (batch_size, end_channels, num_nodes, self.output_dim)
         x = self.end_conv_2(x)
         xc = self.end_conv_2(xc)
-        xs = self.end_conv_2(xs)
+        # xs = self.end_conv_2(xs)
         # link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs #,learned_acsmx[-1]
+        return x,xc#,xs #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         adj = torch.from_numpy(adj)
@@ -536,25 +536,27 @@ class GWNET(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_predicted,cy_predicted,sy_predicted = self.predict(batch)
+        y_predicted,cy_predicted = self.predict(batch)
+        # y_predicted,cy_predicted,sy_predicted = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         cy_true = self.afc_mx.detach().T.float() @ y_true
-        sy_true = torch.softmax(self.acs.detach(),dim=-1).t().float() @ cy_true
+        # sy_true = torch.softmax(self.acs.detach(),dim=-1).t().float() @ cy_true
 
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
         cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
-        sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
+        # sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,torch.softmax(self.acs,dim=-1))
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
-        loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
+        # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
-        return loss_f+ loss_c + loss_s
+        self._logger.info('fine_loss: {0} coarse_loss:{1} '.format(loss_f,loss_c))
+        # self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
+        return loss_f + 0.001*loss_c #+ loss_s
 
     def predict(self, batch):
         return self.forward(batch)
