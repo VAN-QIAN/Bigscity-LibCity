@@ -267,6 +267,7 @@ class GWNET(AbstractTrafficStateModel):
         self.residual_convs = nn.ModuleList()
         self.skip_convs = nn.ModuleList()
         self.bn = nn.ModuleList()
+        self.bnc = nn.ModuleList()
         self.gconv = nn.ModuleList()
         self.acs = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes), device=self.device),requires_grad=True)
         # self.register_parameter(name='assMatrix', param=assMatrix)
@@ -333,6 +334,7 @@ class GWNET(AbstractTrafficStateModel):
                                                  out_channels=self.skip_channels,
                                                  kernel_size=(1, 1)))
                 self.bn.append(nn.BatchNorm2d(self.residual_channels))
+                self.bnc.append(nn.BatchNorm2d(self.residual_channels))
                 new_dilation *= 2
                 receptive_field += additional_scope
                 additional_scope *= 2
@@ -484,7 +486,7 @@ class GWNET(AbstractTrafficStateModel):
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
-            xc = self.bn[i](xc)
+            xc = self.bnc[i](xc)
             # xs = self.bn[i](xs)
         x = F.relu(skip)
         xc = F.relu(skip_c)
