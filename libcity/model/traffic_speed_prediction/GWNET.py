@@ -249,7 +249,7 @@ class GWNET(AbstractTrafficStateModel):
 
         self.n1 = config.get('n1',0.8)
         self.n2 = config.get('n2',0.1)
-        self.n3 = config.get('n3',0.8)
+        self.n3 = config.get('n3',0.1)
         self.n4 = config.get('n4',0.1)
         self.n5 = config.get('n5',0.8)
 
@@ -340,7 +340,7 @@ class GWNET(AbstractTrafficStateModel):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc,self.acs,self.super_nodes,self.coarse_nodes,device=self.device
-                                          , support_len=self.supports_len))
+                                          ,n1=self.n1,n3=self.n3, support_len=self.supports_len))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
                                     out_channels=self.end_channels,
@@ -555,7 +555,7 @@ class GWNET(AbstractTrafficStateModel):
         loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
-        self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
+        # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
         self._logger.info('fine_loss: {0} coarse_loss:{1} '.format(loss_f,loss_c))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
         return loss_f + 0.001*loss_c #+ loss_s
