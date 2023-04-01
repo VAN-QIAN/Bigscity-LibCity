@@ -254,39 +254,39 @@ class TrafficStateDataset(AbstractDataset):
         Returns:
             np.ndarray: 数据数组, 3d-array: (len_time, num_nodes, feature_dim)
         """
-        # 加载数据集
-        self._logger.info("Loading file " + filename + '.dyna')
-        dynafile = pd.read_csv(self.data_path + filename + '.dyna')
-        if self.data_col != '':  # 根据指定的列加载数据集
-            if isinstance(self.data_col, list):
-                data_col = self.data_col.copy()
-            else:  # str
-                data_col = [self.data_col].copy()
-            data_col.insert(0, 'time')
-            data_col.insert(1, 'entity_id')
-            dynafile = dynafile[data_col]
-        else:  # 不指定则加载所有列
-            dynafile = dynafile[dynafile.columns[2:]]  # 从time列开始所有列
-        # 求时间序列
-        self.timesolts = list(dynafile['time'][:int(dynafile.shape[0] / len(self.geo_ids))])
-        self.idx_of_timesolts = dict()
-        if not dynafile['time'].isna().any():  # 时间没有空值
-            self.timesolts = list(map(lambda x: x.replace('T', ' ').replace('Z', ''), self.timesolts))
-            self.timesolts = np.array(self.timesolts, dtype='datetime64[ns]')
-            for idx, _ts in enumerate(self.timesolts):
-                self.idx_of_timesolts[_ts] = idx
-        # 转3-d数组
-        feature_dim = len(dynafile.columns) - 2
-        df = dynafile[dynafile.columns[-feature_dim:]]
-        len_time = len(self.timesolts)
-        data = []
-        for i in range(0, df.shape[0], len_time):
-            data.append(df[i:i + len_time].values)
-        data = np.array(data, dtype=np.float)  # (len(self.geo_ids), len_time, feature_dim)
-        data = data.swapaxes(0, 1)  # (len_time, len(self.geo_ids), feature_dim)
+        # # 加载数据集
+        # self._logger.info("Loading file " + filename + '.dyna')
+        # dynafile = pd.read_csv(self.data_path + filename + '.dyna')
+        # if self.data_col != '':  # 根据指定的列加载数据集
+        #     if isinstance(self.data_col, list):
+        #         data_col = self.data_col.copy()
+        #     else:  # str
+        #         data_col = [self.data_col].copy()
+        #     data_col.insert(0, 'time')
+        #     data_col.insert(1, 'entity_id')
+        #     dynafile = dynafile[data_col]
+        # else:  # 不指定则加载所有列
+        #     dynafile = dynafile[dynafile.columns[2:]]  # 从time列开始所有列
+        # # 求时间序列
+        # self.timesolts = list(dynafile['time'][:int(dynafile.shape[0] / len(self.geo_ids))])
+        # self.idx_of_timesolts = dict()
+        # if not dynafile['time'].isna().any():  # 时间没有空值
+        #     self.timesolts = list(map(lambda x: x.replace('T', ' ').replace('Z', ''), self.timesolts))
+        #     self.timesolts = np.array(self.timesolts, dtype='datetime64[ns]')
+        #     for idx, _ts in enumerate(self.timesolts):
+        #         self.idx_of_timesolts[_ts] = idx
+        # # 转3-d数组
+        # feature_dim = len(dynafile.columns) - 2
+        # df = dynafile[dynafile.columns[-feature_dim:]]
+        # len_time = len(self.timesolts)
+        # data = []
+        # for i in range(0, df.shape[0], len_time):
+        #     data.append(df[i:i + len_time].values)
+        # data = np.array(data, dtype=np.float)  # (len(self.geo_ids), len_time, feature_dim)
+        # data = data.swapaxes(0, 1)  # (len_time, len(self.geo_ids), feature_dim)
+        # self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
+        data = np.load(self.data_path + filename + '.dyna')
         self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
-        # data = np.load(self.data_path + filename + '.dyna1')
-        # self._logger.info("Loaded file " + filename + '.dyna1' + ', shape=' + str(data.shape))
         return data
 
     def _load_grid_3d(self, filename):
