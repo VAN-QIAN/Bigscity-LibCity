@@ -401,7 +401,7 @@ class GWNET(AbstractTrafficStateModel):
         inputs = inputs.transpose(1, 3)  # (batch_size, feature_dim, num_nodes, input_window)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))  # (batch_size, feature_dim, num_nodes, input_window+1)
         cinputs = self.afc_mx.detach().t().float() @ inputs
-        acs = F.softmax(self.acs, dim=1)
+        acs = F.softmax(F.relu(self.acs), dim=1)
         sinputs = acs.clone().detach().t().float() @ cinputs.clone() #.detach()
 
         in_len = inputs.size(3)
