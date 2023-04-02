@@ -80,7 +80,7 @@ class TrafficStateDataset(AbstractDataset):
             self._load_geo()
         else:
             raise ValueError('Not found .geo file!')
-        if os.path.exists(self.data_path + self.rel_file + '.rel'):  # .rel file is not necessary
+        if os.path.exists(self.data_path + self.rel_file + '.adj'):  # .rel file is not necessary
             self._load_rel()
         else:
             self.adj_mx = np.zeros((len(self.geo_ids), len(self.geo_ids)), dtype=np.float32)
