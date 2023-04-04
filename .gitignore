@@ -12,4 +12,5 @@
 /libcity/data/dataset/*/__pycache__
 *.log
 *.err
+*.npy
 

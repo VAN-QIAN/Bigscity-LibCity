@@ -1,12 +1,184 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_geometric.nn.pool as P
 from logging import getLogger
 from libcity.model.abstract_traffic_state_model import AbstractTrafficStateModel
 from libcity.model import loss
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse import linalg
+import copy
+from typing import Callable, Optional, Tuple, Union
+
+
+from torch import Tensor
+from torch.nn import Linear
+
+from torch_geometric.nn import LEConv
+from torch_geometric.nn.pool.topk_pool import topk
+from torch_geometric.utils import (
+    add_remaining_self_loops,
+    remove_self_loops,
+    scatter,
+    softmax,
+    to_edge_index,
+    to_torch_coo_tensor,
+    to_torch_csr_tensor,
+)
+
+
+class ASAPooling(torch.nn.Module):
+    r"""The Adaptive Structure Aware Pooling operator from the
+    `"ASAP: Adaptive Structure Aware Pooling for Learning Hierarchical
+    Graph Representations" <https://arxiv.org/abs/1911.07979>`_ paper.
+
+    Args:
+        in_channels (int): Size of each input sample.
+        ratio (float or int): Graph pooling ratio, which is used to compute
+            :math:`k = \lceil \mathrm{ratio} \cdot N \rceil`, or the value
+            of :math:`k` itself, depending on whether the type of :obj:`ratio`
+            is :obj:`float` or :obj:`int`. (default: :obj:`0.5`)
+        GNN (torch.nn.Module, optional): A graph neural network layer for
+            using intra-cluster properties.
+            Especially helpful for graphs with higher degree of neighborhood
+            (one of :class:`torch_geometric.nn.conv.GraphConv`,
+            :class:`torch_geometric.nn.conv.GCNConv` or
+            any GNN which supports the :obj:`edge_weight` parameter).
+            (default: :obj:`None`)
+        dropout (float, optional): Dropout probability of the normalized
+            attention coefficients which exposes each node to a stochastically
+            sampled neighborhood during training. (default: :obj:`0`)
+        negative_slope (float, optional): LeakyReLU angle of the negative
+            slope. (default: :obj:`0.2`)
+        add_self_loops (bool, optional): If set to :obj:`True`, will add self
+            loops to the new graph connectivity. (default: :obj:`False`)
+        **kwargs (optional): Additional parameters for initializing the
+            graph neural network layer.
+    """
+    def __init__(self, in_channels: int, ratio: Union[float, int] = 0.5,
+                 GNN: Optional[Callable] = None, dropout: float = 0.0,
+                 negative_slope: float = 0.2, add_self_loops: bool = False,
+                 **kwargs):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.ratio = ratio
+        self.negative_slope = negative_slope
+        self.dropout = dropout
+        self.GNN = GNN
+        self.add_self_loops = add_self_loops
+
+        self.lin = Linear(in_channels, in_channels)
+        self.att = Linear(2 * in_channels, 1)
+        self.gnn_score = LEConv(self.in_channels, 1)
+        if self.GNN is not None:
+            self.gnn_intra_cluster = GNN(self.in_channels, self.in_channels,
+                                         **kwargs)
+        else:
+            self.gnn_intra_cluster = None
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        r"""Resets all learnable parameters of the module."""
+        self.lin.reset_parameters()
+        self.att.reset_parameters()
+        self.gnn_score.reset_parameters()
+        if self.gnn_intra_cluster is not None:
+            self.gnn_intra_cluster.reset_parameters()
+
+    def forward(
+        self,
+        x: Tensor,
+        edge_index: Tensor,
+        edge_weight: Optional[Tensor] = None,
+        batch: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor, Optional[Tensor], Tensor, Tensor]:
+        r"""
+        Args:
+            x (torch.Tensor): The node feature matrix.
+            edge_index (torch.Tensor): The edge indices.
+            edge_weight (torch.Tensor, optional): The edge weights.
+                (default: :obj:`None`)
+            batch (torch.Tensor, optional): The batch vector
+                :math:`\mathbf{b} \in {\{ 0, \ldots, B-1\}}^N`, which assigns
+                each node to a specific example. (default: :obj:`None`)
+
+        Return types:
+            * **x** (*torch.Tensor*): The pooled node embeddings.
+            * **edge_index** (*torch.Tensor*): The coarsened edge indices.
+            * **edge_weight** (*torch.Tensor, optional*): The coarsened edge
+              weights.
+            * **batch** (*torch.Tensor*): The coarsened batch vector.
+            * **index** (*torch.Tensor*): The top-:math:`k` node indices of
+              nodes which are kept after pooling.
+        """
+        N = x.size(0)
+
+        edge_index, edge_weight = add_remaining_self_loops(
+            edge_index, edge_weight, fill_value=1., num_nodes=N)
+
+        if batch is None:
+            batch = edge_index.new_zeros(x.size(0))
+
+        x = x.unsqueeze(-1) if x.dim() == 1 else x
+
+        x_pool = x
+        if self.gnn_intra_cluster is not None:
+            x_pool = self.gnn_intra_cluster(x=x, edge_index=edge_index,
+                                            edge_weight=edge_weight)
+
+        x_pool_j = x_pool[edge_index[0]]
+        x_q = scatter(x_pool_j, edge_index[1], dim=0, reduce='max')
+        x_q = self.lin(x_q)[edge_index[1]]
+
+        score = self.att(torch.cat([x_q, x_pool_j], dim=-1)).view(-1)
+        score = F.leaky_relu(score, self.negative_slope)
+        score = softmax(score, edge_index[1], num_nodes=N)
+
+        # Sample attention coefficients stochastically.
+        score = F.dropout(score, p=self.dropout, training=self.training)
+
+        v_j = x[edge_index[0]] * score.view(-1, 1)
+        x = scatter(v_j, edge_index[1], dim=0, reduce='sum')
+
+        # Cluster selection.
+        fitness = self.gnn_score(x, edge_index).sigmoid().view(-1)
+        perm = topk(fitness, self.ratio, batch)
+        x = x[perm] * fitness[perm].view(-1, 1)
+        batch = batch[perm]
+
+        # Graph coarsening.
+        A = to_torch_csr_tensor(edge_index, edge_weight, size=(N, N))
+        S = to_torch_coo_tensor(edge_index, score, size=(N, N))
+        S = S.index_select(1, perm).to_sparse_csr()
+        A = S.t().to_sparse_csr() @ (A @ S)
+
+        if edge_weight is None:
+            edge_index, _ = to_edge_index(A)
+        else:
+            edge_index, edge_weight = to_edge_index(A)
+
+        if self.add_self_loops:
+            edge_index, edge_weight = add_remaining_self_loops(
+                edge_index, edge_weight, num_nodes=A.size(0))
+        else:
+            edge_index, edge_weight = remove_self_loops(
+                edge_index, edge_weight)
+
+        return x, A, S, batch, perm
+
+    @torch.jit.unused
+    def jittable(self) -> 'ASAPooling':
+        out = copy.deepcopy(self)
+        out.gnn_score = out.gnn_score.jittable()
+        if out.gnn_intra_cluster is not None:
+            out.gnn_intra_cluster = out.gnn_intra_cluster.jittable()
+        return out
+
+    def __repr__(self) -> str:
+        return (f'{self.__class__.__name__}({self.in_channels}, '
+                f'ratio={self.ratio})')
 
 torch.autograd.set_detect_anomaly(True)
 def sym_adj(adj):
@@ -105,6 +277,7 @@ class HGCN(nn.Module):
         self.fgcn = GCN(c_in, c_out, dropout, support_len)
         self.cgcn = GCN(c_in, c_out, dropout, support_len)
         self.sgcn = GCN(c_in, c_out, dropout, support_len)
+        self.asap = ASAPooling((order * support_len + 1) * c_in,ratio=0.4)
         
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
@@ -117,6 +290,7 @@ class HGCN(nn.Module):
         self.n3 = n3
         self.n4 = n4
         self.n5 = n5
+        
 
         # self.nconv = NConv()
         # self.mlp = Linear(c_in, c_out)
@@ -144,13 +318,15 @@ class HGCN(nn.Module):
 
     #     return link_loss, ent_loss
 
-    def forward(self, x, support,support_c,support_s,acs):
+    def forward(self, x, support,support_c):
         # out = [x]
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         hf = self.fgcn(x,support)
         hc = self.cgcn(self.afc.t().float() @ x, support_c)
-        hs = self.sgcn(acs.t().float() @ self.afc.t().float() @ x, support_s)
+        hs,support_s0,acs = self.asap(self.afc.t().float() @ x, torch.range(0, len(self.afc[1])),support_c[0])
+        supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in support_c]
+        hs = self.sgcn(acs.t().float() @ self.afc.t().float() @ x, supports_s)
         # for a in support:
         #     # fine-grained
         #     # ac = self.afc.trans @ a @ self.afc
@@ -336,16 +512,16 @@ class GWNET(AbstractTrafficStateModel):
                                                    out_channels=self.dilation_channels,
                                                    kernel_size=(1, self.kernel_size), dilation=new_dilation))
                 # print(self.filter_convs[-1])
-                self.gate_convs.append(nn.Conv1d(in_channels=self.residual_channels,
+                self.gate_convs.append(nn.Conv2d(in_channels=self.residual_channels,
                                                  out_channels=self.dilation_channels,
                                                  kernel_size=(1, self.kernel_size), dilation=new_dilation))
                 # print(self.gate_convs[-1])
                 # 1x1 convolution for residual connection
-                self.residual_convs.append(nn.Conv1d(in_channels=self.dilation_channels,
+                self.residual_convs.append(nn.Conv2d(in_channels=self.dilation_channels,
                                                      out_channels=self.residual_channels,
                                                      kernel_size=(1, 1)))
                 # 1x1 convolution for skip connection
-                self.skip_convs.append(nn.Conv1d(in_channels=self.dilation_channels,
+                self.skip_convs.append(nn.Conv2d(in_channels=self.dilation_channels,
                                                  out_channels=self.skip_channels,
                                                  kernel_size=(1, 1)))
                 self.bn.append(nn.BatchNorm2d(self.residual_channels))
@@ -433,7 +609,7 @@ class GWNET(AbstractTrafficStateModel):
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
         # self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
 
-        self.supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in self.supports_c] #self.acs.detach().t().float()
+        # self.supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in self.supports_c] #self.acs.detach().t().float()
         # self.supports_s = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_s]
         # WaveNet layers
 
@@ -521,7 +697,7 @@ class GWNET(AbstractTrafficStateModel):
                     x = self.gconv[i](x, new_supports)
                 else:
                     # self._logger.info('gconv') ,xs
-                    x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,self.supports_s,acs)
+                    x,xc,xs = self.gconv[i](x,self.supports,self.supports_c)#,self.supports_s,acs)
                     # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
@@ -606,6 +782,7 @@ class GWNET(AbstractTrafficStateModel):
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
+        np.save("acs",F.softmax(F.relu(self.acs), dim=1).cpu().detach().numpy())
         # train_loss = loss_f + loss_c + loss_s
         self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} '.format(loss_f,loss_c))
