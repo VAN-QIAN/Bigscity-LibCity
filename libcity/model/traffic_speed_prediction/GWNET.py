@@ -144,13 +144,24 @@ class HGCN(nn.Module):
 
     #     return link_loss, ent_loss
 
-    def forward(self, x, support,support_c,support_s,acs):
+    def forward(self, x, support,support_c,acs): #,support_s
         # out = [x]
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         hf = self.fgcn(x,support)
         hc = self.cgcn(self.afc.t().float() @ x, support_c)
-        hs = self.sgcn(acs.t().float() @ self.afc.t().float() @ x, support_s)
+        xs = acs.t().float() @ self.afc.t().float() @ x
+        # print(xs.size())
+        hs = xs.permute(2,1,0,3)
+        hs = torch.reshape(hs,(self.super_nodes,-1))
+        # print(hs.size())
+        hst = xs.permute(3,0,1,2)
+        hst = torch.reshape(hst,(-1,self.super_nodes))
+        # print(hst.size())
+        as_mat = (F.relu(hs@hst - 0.5)).detach().cpu().numpy()
+        adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
+        supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
+        hs = self.sgcn(xs, supports_s)
         # for a in support:
         #     # fine-grained
         #     # ac = self.afc.trans @ a @ self.afc
@@ -433,7 +444,7 @@ class GWNET(AbstractTrafficStateModel):
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
         # self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
 
-        self.supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in self.supports_c] #self.acs.detach().t().float()
+        # self.supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in self.supports_c] #self.acs.detach().t().float()
         # self.supports_s = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_s]
         # WaveNet layers
 
@@ -521,7 +532,7 @@ class GWNET(AbstractTrafficStateModel):
                     x = self.gconv[i](x, new_supports)
                 else:
                     # self._logger.info('gconv') ,xs
-                    x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,self.supports_s,acs)
+                    x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,acs) #,self.supports_s
                     # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
