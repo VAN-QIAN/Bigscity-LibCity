@@ -224,8 +224,10 @@ class HGCN(nn.Module):
         hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
         hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        
+        # as_hat = F.sigmoid(hs.float() @ hs.t().float())
 
-        return hf,hc,hs#,acs
+        return hf,hc,hs#,ac_hat#,as_hat
 
 
 class GWNET(AbstractTrafficStateModel):
@@ -257,6 +259,7 @@ class GWNET(AbstractTrafficStateModel):
         self.output_dim = self.data_feature.get('output_dim', 1)
         self.device = config.get('device', torch.device('cpu'))
         self.afc_mx = torch.from_numpy(self.afc).detach().to(device=self.device)
+        self.adj_mx1 = torch.from_numpy(self.afc.T @ self.adj_mx @ self.afc).detach().to(device=self.device)
 
         self.n1 = config.get('n1',0.8)
         self.n2 = config.get('n2',0.2)
@@ -566,7 +569,7 @@ class GWNET(AbstractTrafficStateModel):
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs #,learned_acsmx[-1]
+        return x,xc,xs#,ac_hat,as_hat #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         # adj = torch.from_numpy(adj)
@@ -602,26 +605,43 @@ class GWNET(AbstractTrafficStateModel):
     def calculate_loss(self, batch):
         y_true = batch['y']
         # y_predicted,cy_predicted = self.predict(batch)
-        y_predicted,cy_predicted,sy_predicted = self.predict(batch)
+        y_predicted,cy_predicted,hs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
-        cy_true = self.afc_mx.detach().T.float() @ y_true
-        sy_true = self.acs.detach().t().float() @ cy_true #F.softmax(self.acs.detach(),dim=-1)
+        # ac = self.adj_mx1
+        acs = F.softmax(F.relu(self.acs-0.5), dim=1)
+        nc = acs.float()@hs
+        # print(nc.size())
+        hc = nc.permute(2,1,0,3)
+        hc = torch.reshape(hc,(self.coarse_nodes,-1))
+        # print(hc.size())
+        hct = nc.permute(3,0,1,2)
+        hct = torch.reshape(hct,(-1,self.coarse_nodes))
+        # print(hct.size())
+        ac_hat = F.sigmoid(hc.float() @ hct.float())
+        # print(ac_hat.size())
+        # print(self.adj_mx1.size())
+        
+        # cy_true = self.afc_mx.detach().T.float() @ y_true
+        # sy_true = self.acs.detach().t().float() @ cy_true #F.softmax(self.acs.detach(),dim=-1)
 
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
-        cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
-        sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
+        # cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
+        # sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
-        loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
-        loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
+        x1 = torch.reshape(ac_hat, (-1,))
+        x2 = torch.reshape(self.adj_mx1.long(), (-1,))
+        loss_c = F.binary_cross_entropy(ac_hat,self.adj_mx1.float())
+        # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
+        # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        # self._logger.info('fine_loss: {0} coarse_loss:{1} '.format(loss_f,loss_c))
-        self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
-        return loss_f + 0.001*loss_c + 0.001*(loss_s)#+link_loss+ent_loss)
+        self._logger.info('fine_loss: {0} coarse_loss:{1} '.format(loss_f,loss_c))
+        # self._logger.info('fine_loss: {0} coarse_loss:{1} super_loss:{2}'.format(loss_f,loss_c,loss_s))
+        return loss_f + loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)

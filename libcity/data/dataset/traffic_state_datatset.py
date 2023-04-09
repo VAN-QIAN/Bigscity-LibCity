@@ -285,8 +285,8 @@ class TrafficStateDataset(AbstractDataset):
         # data = np.array(data, dtype=np.float)  # (len(self.geo_ids), len_time, feature_dim)
         # data = data.swapaxes(0, 1)  # (len_time, len(self.geo_ids), feature_dim)
         # self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
-        data = np.load(self.data_path + filename + '.dyna')
-        self._logger.info("Loaded file " + filename + '.dyna' + ', shape=' + str(data.shape))
+        data = np.load(self.data_path + filename + '.dyna1')
+        self._logger.info("Loaded file " + filename + '.dyna1' + ', shape=' + str(data.shape))
         return data
 
     def _load_grid_3d(self, filename):
