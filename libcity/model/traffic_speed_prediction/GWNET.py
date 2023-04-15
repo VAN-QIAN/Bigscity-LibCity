@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils.parametrizations import orthogonal
 from logging import getLogger
 from libcity.model.abstract_traffic_state_model import AbstractTrafficStateModel
 from libcity.model import loss
@@ -152,20 +153,22 @@ class HGCN(nn.Module):
         hc = self.cgcn(self.afc.t().float() @ x, support_c)
         xs = acs.t().float() @ self.afc.t().float() @ x
         # print(xs.size())
-        hs = xs.permute(2,1,0,3)
-        hs = torch.reshape(hs,(self.super_nodes,-1))
-        # print(hs.size())
-        hst = xs.permute(3,0,1,2)
-        hst = torch.reshape(hst,(-1,self.super_nodes))
-        # print(hst.size())
-        as_mat = (F.relu(hs@hst - 0.5)).detach().cpu().numpy()
-        # as_mat = (torch.sigmoid(hs@hst)).detach().cpu().numpy() #change to sigmoid
+        # hs = xs.permute(2,1,0,3)
+        # hs = torch.reshape(hs,(self.super_nodes,-1))
+        # # print(hs.size())
+        # hst = xs.permute(3,0,1,2)
+        # hst = torch.reshape(hst,(-1,self.super_nodes))
+        # # print(hst.size())
         
-        adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
+        # as_mat = (F.relu(hs@hst - 0.5)).detach().cpu().numpy()
+        # # as_mat = (torch.sigmoid(hs@hst)).detach().cpu().numpy() #change to sigmoid
+        supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self._device) for i in support_c] #self.acs.detach().t().float()
+        # supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
+        # adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
         print("as_mat")
-        print(adj_mxs[0])
-        supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
-        supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
+        print(supports_s[0])
+        # supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
+        # supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
         hs = self.sgcn(xs, supports_s)
         # for a in support:
         #     # fine-grained
@@ -296,7 +299,8 @@ class GWNET(AbstractTrafficStateModel):
         # self.bnc = nn.ModuleList()
 
         self.gconv = nn.ModuleList()
-        self.acs = torch.nn.init.kaiming_uniform_(torch.nn.Parameter(torch.empty((self.coarse_nodes, self.super_nodes),requires_grad=True).to(device=self.device)))
+        self.acs = orthogonal(nn.Linear(self.super_nodes,self.coarse_nodes))
+        # self.acs = torch.nn.init.orthogonal_(torch.nn.Parameter(torch.empty((self.coarse_nodes, self.super_nodes),requires_grad=True).to(device=self.device)))
 
         # self.acs = torch.nn.Parameter(torch.ones((self.coarse_nodes, self.super_nodes),requires_grad=True).to(device=self.device))
         # acs = F.softmax(self.acs,dim=-1).to(device=self.device)#,requires_grad=True
@@ -313,7 +317,7 @@ class GWNET(AbstractTrafficStateModel):
         self.cal_adj(self.adjtype)
         self.supports = [torch.tensor(i).to(self.device) for i in self.adj_mx]
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
-        self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
+        # self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
 
 
 
@@ -360,16 +364,16 @@ class GWNET(AbstractTrafficStateModel):
                                                    out_channels=self.dilation_channels,
                                                    kernel_size=(1, self.kernel_size), dilation=new_dilation))
                 # print(self.filter_convs[-1])
-                self.gate_convs.append(nn.Conv1d(in_channels=self.residual_channels,
+                self.gate_convs.append(nn.Conv2d(in_channels=self.residual_channels,
                                                  out_channels=self.dilation_channels,
                                                  kernel_size=(1, self.kernel_size), dilation=new_dilation))
                 # print(self.gate_convs[-1])
                 # 1x1 convolution for residual connection
-                self.residual_convs.append(nn.Conv1d(in_channels=self.dilation_channels,
+                self.residual_convs.append(nn.Conv2d(in_channels=self.dilation_channels,
                                                      out_channels=self.residual_channels,
                                                      kernel_size=(1, 1)))
                 # 1x1 convolution for skip connection
-                self.skip_convs.append(nn.Conv1d(in_channels=self.dilation_channels,
+                self.skip_convs.append(nn.Conv2d(in_channels=self.dilation_channels,
                                                  out_channels=self.skip_channels,
                                                  kernel_size=(1, 1)))
                 self.bn.append(nn.BatchNorm2d(self.residual_channels))
@@ -425,8 +429,19 @@ class GWNET(AbstractTrafficStateModel):
         inputs = inputs.transpose(1, 3)  # (batch_size, feature_dim, num_nodes, input_window)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))  # (batch_size, feature_dim, num_nodes, input_window+1)
         cinputs = self.afc_mx.detach().t().float() @ inputs
-        acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
-        sinputs = acs.clone().detach().t().float() @ cinputs.clone() #.detach()
+        acs = self.acs.weight
+        # print(acs.size())
+        # print(acs.type)
+        acst = acs.permute(1,0)
+        # print(acst.size())
+        # print(acst.type)
+        # sinputs = acst @ cinputs.clone()
+        # acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
+        hc = cinputs#.permute(2,3,0,1)
+        sinputs = acst@hc #.detach()
+        # sinputs = sinputs.permute(2,3,0,1)
+        # print(sinputs.size())
+        # print(cinputs.size())
 
         in_len = inputs.size(3)
         if in_len < self.receptive_field:
@@ -613,24 +628,30 @@ class GWNET(AbstractTrafficStateModel):
     def calculate_loss(self, batch):
         y_true = batch['y']
         # y_predicted,cy_predicted = self.predict(batch)
-        y_predicted,cy_predicted,hs = self.predict(batch)
+        y_predicted,hc,hs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         # ac = self.adj_mx1
-        acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
+        acs = self.acs.weight
+        acst = acs.transpose(1,0)
+        # acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
         print("acs")
         print(acs)
-        nc = acs.float()@hs
+        nc = hc
         # print(nc.size())
-        hc = nc.permute(2,1,0,3)
-        hc = torch.reshape(hc,(self.coarse_nodes,-1))
+        h = nc.permute(2,1,0,3)
+        h = torch.reshape(h,(self.coarse_nodes,-1))
         # print(hc.size())
-        hct = nc.permute(3,0,1,2)
-        hct = torch.reshape(hct,(-1,self.coarse_nodes))
+        ht = nc.permute(3,0,1,2)
+        ht = torch.reshape(ht,(-1,self.coarse_nodes))
         # print(hct.size())
-        ac_hat = torch.sigmoid(hc.float() @ hct.float())
-        # print(ac_hat.size())
+        ac_hat = torch.trace(h.float() @ ht.float())
+        # print(acs.size())
+        # print(h.size())
+        # print(ht.size())
+        ac = torch.trace(acst @ h.float() @ ht.float() @ acs)
+        
         # print(self.adj_mx1.size())
         
         # cy_true = self.afc_mx.detach().T.float() @ y_true
@@ -642,16 +663,17 @@ class GWNET(AbstractTrafficStateModel):
         # sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         # link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
+        loss_trace = ac_hat - ac
         # x1 = torch.reshape(ac_hat, (-1,))
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
-        loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
+        # loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        self._logger.info('fine_loss: {0} bce_loss:{1} '.format(loss_f,loss_bce))
+        self._logger.info('fine_loss: {0} trace_loss:{1} '.format(loss_f,loss_trace))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + loss_bce #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + loss_trace #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)
