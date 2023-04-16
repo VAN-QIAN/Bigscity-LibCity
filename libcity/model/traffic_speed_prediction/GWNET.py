@@ -162,8 +162,8 @@ class HGCN(nn.Module):
         # as_mat = (torch.sigmoid(hs@hst)).detach().cpu().numpy() #change to sigmoid
         
         adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
-        print("as_mat")
-        print(adj_mxs[0])
+        # print("as_mat")
+        # print(adj_mxs[0])
         supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
         supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
         hs = self.sgcn(xs, supports_s)
@@ -264,6 +264,7 @@ class GWNET(AbstractTrafficStateModel):
         self.output_dim = self.data_feature.get('output_dim', 1)
         self.device = config.get('device', torch.device('cpu'))
         self.afc_mx = torch.from_numpy(self.afc).detach().to(device=self.device)
+        self.af = torch.from_numpy(self.adj_mx).detach().to(device=self.device)
         self.adj_mx1 = torch.from_numpy(self.afc.T @ self.adj_mx @ self.afc).detach().to(device=self.device)
 
         self.n1 = config.get('n1',0.8)
@@ -619,8 +620,17 @@ class GWNET(AbstractTrafficStateModel):
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         # ac = self.adj_mx1
         acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
-        print("acs")
-        print(acs)
+        # print("acs")
+        # print(acs)
+        nf = self.afc_mx.float() @ cy_predicted
+        hf = nf.permute(2,1,0,3)
+        hf = torch.reshape(hf,(self.num_nodes,-1))
+        # print(hc.size())
+        hft = nf.permute(3,0,1,2)
+        hft = torch.reshape(hft,(-1,self.num_nodes))
+        # print(hct.size())
+        af_hat = torch.sigmoid(hf.float() @ hft.float())
+
         nc = acs.float()@hs
         # print(nc.size())
         hc = nc.permute(2,1,0,3)
@@ -644,14 +654,15 @@ class GWNET(AbstractTrafficStateModel):
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         # x1 = torch.reshape(ac_hat, (-1,))
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
+        loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        self._logger.info('fine_loss: {0} bce_loss:{1} '.format(loss_f,loss_bce))
+        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2}'.format(loss_f,loss_bce,loss_bce0))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + loss_bce #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + loss_bce + loss_bce0  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)
