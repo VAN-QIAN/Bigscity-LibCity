@@ -3,7 +3,7 @@
 #SBATCH --nodes=1                # 1 computer nodes
 #SBATCH --ntasks-per-node=1      # 1 MPI tasks on EACH NODE
 #SBATCH --cpus-per-task=4        # 4 OpenMP threads on EACH MPI TASK
-#SBATCH --gres=gpu:2             # Using 1 GPU card
+#SBATCH --gres=gpu:1             # Using 1 GPU card
 #SBATCH --mem=40GB               # Request 50GB memory
 #SBATCH --time=0-48:00:00        # Time limit day-hrs:min:sec
 #SBATCH --output=../3layer-kdd/Our_BAY_3Coarse-AF_%j.log   # Standard output
