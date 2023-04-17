@@ -8,4 +8,4 @@
 #SBATCH --time=0-24:00:00        # Time limit day-hrs:min:sec
 #SBATCH --output=../3layer-kdd/Our_BAY_Coarse_%j.log   # Standard output
 #SBATCH --error=../3layer-kdd/Our_BAY_Coarse_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
-singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model GWNET --dataset PEMS_BAY --config donfig1
+singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model GWNET --dataset PEMS_BAY --config config1
