@@ -241,7 +241,8 @@ class GWNET(AbstractTrafficStateModel):
         self.afc = data_feature.get('afc_mx')
         self.num_nodes = data_feature.get('num_nodes', 1)
         self.coarse_nodes = len(self.afc[0])
-        self.super_nodes = data_feature.get('super_nodes', 10)
+        self.super_nodes = config.get('super_nodes', 10)
+        print('super_nodes '+str(self.super_nodes))
         self.feature_dim = data_feature.get('feature_dim', 2)
         super().__init__(config, data_feature)
 
