@@ -568,6 +568,8 @@ class GWNET(AbstractTrafficStateModel):
         xc = F.relu(skip_c)
         xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
+        hs = xs
+        hc = xc
         x = F.relu(self.end_conv_1(x))
         xc = F.relu(self.end_conv_1(xc))
         xs = F.relu(self.end_conv_1(xs))
@@ -579,7 +581,7 @@ class GWNET(AbstractTrafficStateModel):
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs#,ac_hat,as_hat #,learned_acsmx[-1]
+        return x,xc,xs#hc,hs#,ac_hat,as_hat #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         # adj = torch.from_numpy(adj)
@@ -595,6 +597,24 @@ class GWNET(AbstractTrafficStateModel):
         # out_adj = out_adj.numpy()
 
         return link_loss, ent_loss
+    
+    def othLoss(self,hc):
+        # hc = (batch_size, end_channels, num_nodes, self.output_dim)
+        hc = hc.squeeze(3)
+        hc = hc.permute(2,0,1)
+        hc = torch.reshape(hc,(self.super_nodes,-1))
+        # print('hc.size')
+        # print(hc.size())
+        tmpLoss = 0
+        cos = torch.nn.CosineSimilarity(dim=0, eps=1e-6)
+        for i in range(self.super_nodes-1):
+            for j in range(i+1,self.super_nodes):
+                # print(hc[i].size())
+                tmpLoss += cos(hc[i],hc[j])
+
+        tmpLoss = tmpLoss/(self.super_nodes*(self.super_nodes-1)/2)
+
+        return tmpLoss
 
     def cal_adj(self, adjtype):
         if adjtype == "scalap":
@@ -657,13 +677,14 @@ class GWNET(AbstractTrafficStateModel):
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
+        othloss = self.othLoss(hs)
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2}'.format(loss_f,loss_bce,loss_bce0))
+        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + loss_bce + loss_bce0  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + loss_bce + loss_bce0 + othloss  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)
