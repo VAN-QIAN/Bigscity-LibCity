@@ -568,8 +568,6 @@ class GWNET(AbstractTrafficStateModel):
         xc = F.relu(skip_c)
         xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
-        hs = xs
-        hc = xc
         x = F.relu(self.end_conv_1(x))
         xc = F.relu(self.end_conv_1(xc))
         xs = F.relu(self.end_conv_1(xs))
@@ -581,7 +579,7 @@ class GWNET(AbstractTrafficStateModel):
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs#hc,hs#,ac_hat,as_hat #,learned_acsmx[-1]
+        return x,xc,xs#,ac_hat,as_hat #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         # adj = torch.from_numpy(adj)
