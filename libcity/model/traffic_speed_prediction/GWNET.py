@@ -426,28 +426,28 @@ class GWNET(AbstractTrafficStateModel):
         inputs = batch['X']  # (batch_size, input_window, num_nodes, feature_dim)
         inputs = inputs.transpose(1, 3)  # (batch_size, feature_dim, num_nodes, input_window)
         inputs = nn.functional.pad(inputs, (1, 0, 0, 0))  # (batch_size, feature_dim, num_nodes, input_window+1)
-        cinputs = self.afc_mx.detach().t().float() @ inputs
+        # cinputs = self.afc_mx.detach().t().float() @ inputs
         acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
-        sinputs = acs.clone().detach().t().float() @ cinputs.clone() #.detach()
+        # sinputs = acs.clone().detach().t().float() @ cinputs.clone() #.detach()
 
         in_len = inputs.size(3)
         if in_len < self.receptive_field:
             x = nn.functional.pad(inputs, (self.receptive_field - in_len, 0, 0, 0))
-            xc = nn.functional.pad(cinputs, (self.receptive_field - in_len, 0, 0, 0))
-            xs = nn.functional.pad(sinputs, (self.receptive_field - in_len, 0, 0, 0))
+            # xc = nn.functional.pad(cinputs, (self.receptive_field - in_len, 0, 0, 0))
+            # xs = nn.functional.pad(sinputs, (self.receptive_field - in_len, 0, 0, 0))
         else:
             x = inputs
-            xc = cinputs
-            xs = sinputs
+            # xc = cinputs
+            # xs = sinputs
 
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
 
-        xc = self.start_conv(xc)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_c = 0
+        # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        # skip_c = 0
 
-        xs = self.start_conv(xs)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_s = 0
+        # xs = self.start_conv(xs) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        # skip_s = 0
 
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
@@ -474,8 +474,8 @@ class GWNET(AbstractTrafficStateModel):
             # (dilation, init_dilation) = self.dilations[i]
             # residual = dilation_func(x, dilation, init_dilation, i)
             residual = x
-            residual_c = xc
-            residual_s = xs
+            # residual_c = xc
+            # residual_s = xs
             # (batch_size, residual_channels, num_nodes, self.receptive_field)
             # dilated convolution
             filter = self.filter_convs[i](residual)
@@ -498,45 +498,45 @@ class GWNET(AbstractTrafficStateModel):
             skip = s + skip
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
-            # course-grained inputs
-            filter_c = self.filter_convs[i](residual_c)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            filter_c = torch.tanh(filter_c)
-            gate_c = self.gate_convs[i](residual_c)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            gate_c = torch.sigmoid(gate_c)
-            xc = filter_c * gate_c
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # parametrized skip connection
-            sc = xc
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            sc = self.skip_convs[i](sc)
-            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip_c = skip_c[:, :, :, -sc.size(3):]
-            except(Exception):
-                skip_c = 0
-            skip_c = sc + skip_c
+            # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
+            # filter_c = self.filter_convs[i](residual_c)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # filter_c = torch.tanh(filter_c)
+            # gate_c = self.gate_convs[i](residual_c)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # gate_c = torch.sigmoid(gate_c)
+            # xc = filter_c * gate_c
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # # parametrized skip connection
+            # sc = xc
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # sc = self.skip_convs[i](sc)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip_c = skip_c[:, :, :, -sc.size(3):]
+            # except(Exception):
+            #     skip_c = 0
+            # skip_c = sc + skip_c
 
-            # super-grained inputs
-            filter_s = self.filter_convs[i](residual_s)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            filter_s = torch.tanh(filter_s)
-            gate_s = self.gate_convs[i](residual_s)
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            gate_s = torch.sigmoid(gate_s)
-            xs = filter_s * gate_s
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # parametrized skip connection
-            ss = xs
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            ss = self.skip_convs[i](ss)
-            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip_s = skip_s[:, :, :, -ss.size(3):]
-            except(Exception):
-                skip_s = 0
-            skip_s = ss + skip_s
+            # # super-grained inputs 521-539
+            # filter_s = self.filter_convs[i](residual_s)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # filter_s = torch.tanh(filter_s)
+            # gate_s = self.gate_convs[i](residual_s)
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # gate_s = torch.sigmoid(gate_s)
+            # xs = filter_s * gate_s
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # # parametrized skip connection
+            # ss = xs
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # ss = self.skip_convs[i](ss)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip_s = skip_s[:, :, :, -ss.size(3):]
+            # except(Exception):
+            #     skip_s = 0
+            # skip_s = ss + skip_s
 
             if self.gcn_bool and self.supports is not None:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -545,6 +545,7 @@ class GWNET(AbstractTrafficStateModel):
                     x = self.gconv[i](x, new_supports)
                 else:
                     # self._logger.info('gconv') ,xs
+                    # GCN前初始化
                     x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,acs) #,self.supports_s
                     # learned_acsmx.append(learned_acs)
                     
@@ -556,8 +557,8 @@ class GWNET(AbstractTrafficStateModel):
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
             x = x + residual[:, :, :, -x.size(3):]
-            xc = xc + residual_c[:, :, :, -xc.size(3):]
-            xs = xs + residual_s[:, :, :, -xs.size(3):]
+            # xc = xc + residual_c[:, :, :, -xc.size(3):]
+            # xs = xs + residual_s[:, :, :, -xs.size(3):]
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
@@ -565,16 +566,16 @@ class GWNET(AbstractTrafficStateModel):
             xc = self.bnc[i](xc)
             xs = self.bns[i](xs)
         x = F.relu(skip)
-        xc = F.relu(skip_c)
-        xs = F.relu(skip_s)
+        # xc = F.relu(skip_c)
+        # xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
-        xc = F.relu(self.end_conv_1(xc))
-        xs = F.relu(self.end_conv_1(xs))
+        # xc = F.relu(self.end_conv_1(xc)) #要注释
+        # xs = F.relu(self.end_conv_1(xs))
         # (batch_size, end_channels, num_nodes, self.output_dim)
         x = self.end_conv_2(x)
-        xc = self.end_conv_2(xc)
-        xs = self.end_conv_2(xs)
+        # xc = self.end_conv_2(xc)
+        # xs = self.end_conv_2(xs)
         # link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
@@ -675,14 +676,15 @@ class GWNET(AbstractTrafficStateModel):
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
-        othloss = self.othLoss(hs)
+        othloss = torch.abs(self.othLoss(hs))
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
+        # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} '.format(loss_f,loss_bce,loss_bce0))
         self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + loss_bce + loss_bce0 + othloss  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)
