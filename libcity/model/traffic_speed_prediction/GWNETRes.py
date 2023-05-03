@@ -235,7 +235,7 @@ class HGCN(nn.Module):
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class GWNET(AbstractTrafficStateModel):
+class GWNETRes(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -443,11 +443,11 @@ class GWNET(AbstractTrafficStateModel):
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
 
-        # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        # skip_c = 0
+        # xc = self.afc_mx.t().float() @ x #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_c = 0
 
-        # xs = self.start_conv(xs) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        # skip_s = 0
+        # xs = xs = acs.t().float() @ xc #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_s = 0
 
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
@@ -485,6 +485,11 @@ class GWNET(AbstractTrafficStateModel):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             gate = torch.sigmoid(gate)
             x = filter * gate
+
+            xc = self.afc_mx.t().float() @ x 
+            xs = xs = acs.t().float() @ xc
+            residual_c = xc
+            residual_s = xs
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             s = x
@@ -496,6 +501,9 @@ class GWNET(AbstractTrafficStateModel):
             except(Exception):
                 skip = 0
             skip = s + skip
+
+            sc = xc
+            ss = xs
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
@@ -510,13 +518,13 @@ class GWNET(AbstractTrafficStateModel):
             # # parametrized skip connection
             # sc = xc
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # sc = self.skip_convs[i](sc)
+            sc = self.skip_convs[i](sc)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            # try:
-            #     skip_c = skip_c[:, :, :, -sc.size(3):]
-            # except(Exception):
-            #     skip_c = 0
-            # skip_c = sc + skip_c
+            try:
+                skip_c = skip_c[:, :, :, -sc.size(3):]
+            except(Exception):
+                skip_c = 0
+            skip_c = sc + skip_c
 
             # # super-grained inputs 521-539
             # filter_s = self.filter_convs[i](residual_s)
@@ -530,13 +538,13 @@ class GWNET(AbstractTrafficStateModel):
             # # parametrized skip connection
             # ss = xs
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # ss = self.skip_convs[i](ss)
+            ss = self.skip_convs[i](ss)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            # try:
-            #     skip_s = skip_s[:, :, :, -ss.size(3):]
-            # except(Exception):
-            #     skip_s = 0
-            # skip_s = ss + skip_s
+            try:
+                skip_s = skip_s[:, :, :, -ss.size(3):]
+            except(Exception):
+                skip_s = 0
+            skip_s = ss + skip_s
 
             if self.gcn_bool and self.supports is not None:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -557,8 +565,8 @@ class GWNET(AbstractTrafficStateModel):
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
             x = x + residual[:, :, :, -x.size(3):]
-            # xc = xc + residual_c[:, :, :, -xc.size(3):]
-            # xs = xs + residual_s[:, :, :, -xs.size(3):]
+            xc = xc + residual_c[:, :, :, -xc.size(3):]
+            xs = xs + residual_s[:, :, :, -xs.size(3):]
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
@@ -566,8 +574,8 @@ class GWNET(AbstractTrafficStateModel):
             xc = self.bnc[i](xc)
             xs = self.bns[i](xs)
         x = F.relu(skip)
-        # xc = F.relu(skip_c)
-        # xs = F.relu(skip_s)
+        xc = F.relu(skip_c)
+        xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释

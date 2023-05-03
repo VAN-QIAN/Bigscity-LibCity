@@ -150,23 +150,24 @@ class HGCN(nn.Module):
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         hf = self.fgcn(x,support)
         hc = self.cgcn(self.afc.t().float() @ x, support_c)
-        xs = acs.t().float() @ self.afc.t().float() @ x
+        act1 = nn.LeakyRelu()
+        hs = act1(acs.t().float() @ hc)
         # print(xs.size())
-        hs = xs.permute(2,1,0,3)
-        hs = torch.reshape(hs,(self.super_nodes,-1))
-        # print(hs.size())
-        hst = xs.permute(3,0,1,2)
-        hst = torch.reshape(hst,(-1,self.super_nodes))
-        # print(hst.size())
-        as_mat = (F.relu(hs@hst - 0.5)).detach().cpu().numpy()
-        # as_mat = (torch.sigmoid(hs@hst)).detach().cpu().numpy() #change to sigmoid
+        # hs = xs.permute(2,1,0,3)
+        # hs = torch.reshape(hs,(self.super_nodes,-1))
+        # # print(hs.size())
+        # hst = xs.permute(3,0,1,2)
+        # hst = torch.reshape(hst,(-1,self.super_nodes))
+        # # print(hst.size())
+        # as_mat = (F.relu(hs@hst)).detach().cpu().numpy()
+        # # as_mat = (torch.sigmoid(hs@hst)).detach().cpu().numpy() #change to sigmoid
         
-        adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
-        # print("as_mat")
-        # print(adj_mxs[0])
-        supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
-        supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
-        hs = self.sgcn(xs, supports_s)
+        # adj_mxs = [asym_adj(as_mat), asym_adj(np.transpose(as_mat))]
+        # # print("as_mat")
+        # # print(adj_mxs[0])
+        # supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
+        # supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
+        # hs = self.sgcn(xs, supports_s)
         # for a in support:
         #     # fine-grained
         #     # ac = self.afc.trans @ a @ self.afc
@@ -225,17 +226,17 @@ class HGCN(nn.Module):
         # print('hf '+str(hf.shape))
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
-        hc = hc + self.n2*torch.sigmoid(acs.float()@hs)
+        hc = act1(acs.float()@hs)
         hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        # hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
         
         # as_hat = F.sigmoid(hs.float() @ hs.t().float())
 
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class GWNET(AbstractTrafficStateModel):
+class GWNETHg(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -443,11 +444,11 @@ class GWNET(AbstractTrafficStateModel):
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
 
-        # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        # skip_c = 0
+        # xc = self.afc_mx.t().float() @ x #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_c = 0
 
-        # xs = self.start_conv(xs) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        # skip_s = 0
+        # xs = acs.t().float() @ xc #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        skip_s = 0
 
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
@@ -485,6 +486,11 @@ class GWNET(AbstractTrafficStateModel):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             gate = torch.sigmoid(gate)
             x = filter * gate
+
+            # xc = self.afc_mx.t().float() @ x 
+            # xs = xs = acs.t().float() @ xc
+            # residual_c = xc
+            # residual_s = xs
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             s = x
@@ -496,6 +502,9 @@ class GWNET(AbstractTrafficStateModel):
             except(Exception):
                 skip = 0
             skip = s + skip
+
+            # sc = xc
+            # ss = nn.LeakyReLU(acs.t().float() @ sc)
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
@@ -547,6 +556,8 @@ class GWNET(AbstractTrafficStateModel):
                     # self._logger.info('gconv') ,xs
                     # GCN前初始化
                     x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,acs) #,self.supports_s
+                    skip_c = xc + skip_c
+                    skip_s = xs + skip_s
                     # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
@@ -566,8 +577,8 @@ class GWNET(AbstractTrafficStateModel):
             xc = self.bnc[i](xc)
             xs = self.bns[i](xs)
         x = F.relu(skip)
-        # xc = F.relu(skip_c)
-        # xs = F.relu(skip_s)
+        xc = F.relu(skip_c)
+        xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释

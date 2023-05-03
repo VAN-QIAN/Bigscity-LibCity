@@ -6,6 +6,6 @@
 #SBATCH --gres=gpu:1             # Using 1 GPU card
 #SBATCH --mem=40GB               # Request 50GB memory
 #SBATCH --time=0-12:00:00        # Time limit day-hrs:min:sec
-#SBATCH --output=../3layer-kdd/Our_LA_3Coarse-AF_%j.log   # Standard output
-#SBATCH --error=../3layer-kdd/Our_LA_3Coarse-AF_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
-singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model GWNET --dataset METR_LA --config config1
+#SBATCH --output=../3layer-kdd/Our_LA_3Coarse-Relu_%j.log   # Standard output
+#SBATCH --error=../3layer-kdd/Our_LA_3Coarse-Relu_%j.err    # Standard error log #38191 #24834 #19627 --train False --exp_id 19627
+singularity exec --nv ../Torch1-7.sif python3 ./run_model.py --task traffic_state_pred --model GWNETRelu --dataset METR_LA --config config1

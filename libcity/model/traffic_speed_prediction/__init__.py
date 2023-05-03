@@ -1,6 +1,10 @@
 from libcity.model.traffic_speed_prediction.DCRNN import DCRNN
 from libcity.model.traffic_speed_prediction.STGCN import STGCN
 from libcity.model.traffic_speed_prediction.GWNET import GWNET
+from libcity.model.traffic_speed_prediction.GWNETBce import GWNETBce
+from libcity.model.traffic_speed_prediction.GWNETRes import GWNETRes
+from libcity.model.traffic_speed_prediction.GWNETRelu import GWNETRelu
+from libcity.model.traffic_speed_prediction.GWNETHg import GWNETHg
 from libcity.model.traffic_speed_prediction.MTGNN import MTGNN
 from libcity.model.traffic_speed_prediction.TGCLSTM import TGCLSTM
 from libcity.model.traffic_speed_prediction.TGCN import TGCN
@@ -37,5 +41,9 @@ __all__ = [
     "STMGAT",
     "DKFN",
     "STTN",
-    "FNN"
+    "FNN",
+    "GWNETBce",
+    "GWNETRes",
+    "GWNETRelu",
+    "GWNETHg"
 ]
