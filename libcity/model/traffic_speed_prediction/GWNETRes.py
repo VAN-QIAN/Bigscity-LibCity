@@ -487,14 +487,14 @@ class GWNETRes(AbstractTrafficStateModel):
             x = filter * gate
 
             xc = self.afc_mx.t().float() @ x 
-            xs = xs = acs.t().float() @ xc
+            xs = acs.t().float() @ xc
             residual_c = xc
             residual_s = xs
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             s = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            s = self.skip_convs[i](s)
+            # s = self.skip_convs[i](s)
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
             try:
                 skip = skip[:, :, :, -s.size(3):]
@@ -502,8 +502,8 @@ class GWNETRes(AbstractTrafficStateModel):
                 skip = 0
             skip = s + skip
 
-            sc = xc
-            ss = xs
+            sc = self.afc_mx.t().float() @ s
+            ss = acs.t().float() @ sc
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
@@ -518,7 +518,7 @@ class GWNETRes(AbstractTrafficStateModel):
             # # parametrized skip connection
             # sc = xc
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            sc = self.skip_convs[i](sc)
+            # sc = self.skip_convs[i](sc)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
             try:
                 skip_c = skip_c[:, :, :, -sc.size(3):]
@@ -538,7 +538,7 @@ class GWNETRes(AbstractTrafficStateModel):
             # # parametrized skip connection
             # ss = xs
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            ss = self.skip_convs[i](ss)
+            # ss = self.skip_convs[i](ss)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
             try:
                 skip_s = skip_s[:, :, :, -ss.size(3):]
