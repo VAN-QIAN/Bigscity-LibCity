@@ -494,7 +494,7 @@ class GWNETRes(AbstractTrafficStateModel):
             # parametrized skip connection
             s = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # s = self.skip_convs[i](s)
+            s = self.skip_convs[i](s)
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
             try:
                 skip = skip[:, :, :, -s.size(3):]
