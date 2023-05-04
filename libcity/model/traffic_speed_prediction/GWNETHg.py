@@ -228,7 +228,7 @@ class HGCN(nn.Module):
         # print('hs '+str(hs.shape))
         hc = act1(acs.float()@hs)
         hf = hf+self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
-        hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
+        # hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
         # hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
         
         # as_hat = F.sigmoid(hs.float() @ hs.t().float())
@@ -577,8 +577,8 @@ class GWNETHg(AbstractTrafficStateModel):
             xc = self.bnc[i](xc)
             xs = self.bns[i](xs)
         x = F.relu(skip)
-        xc = F.relu(skip_c)
-        xs = F.relu(skip_s)
+        # xc = F.relu(skip_c)
+        # xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释
