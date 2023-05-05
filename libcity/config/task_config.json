@@ -107,7 +107,7 @@
         },
         "STGCN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GWNET": {
@@ -137,32 +137,32 @@
         },
         "AGCRN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "TGCLSTM": {
             "dataset_class": "TGCLSTMDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "TGCN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "TemplateTSP": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ASTGCN": {
             "dataset_class": "ASTGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "MSTGCN": {
             "dataset_class": "ASTGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "MTGNN": {
@@ -172,87 +172,87 @@
         },
         "ACFM": {
             "dataset_class": "ACFMDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STResNet": {
             "dataset_class": "STResNetDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "RNN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "LSTM": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GRU": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "AutoEncoder": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "Seq2Seq": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STResNetCommon": {
             "dataset_class": "TrafficStateGridDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ACFMCommon": {
             "dataset_class": "TrafficStateGridDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ASTGCNCommon": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "MSTGCNCommon": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ToGCN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "CONVGCN": {
             "dataset_class": "CONVGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STG2Seq": {
             "dataset_class": "STG2SeqDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "DMVSTNet": {
             "dataset_class": "DMVSTNetDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ATDM": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GMAN": {
             "dataset_class": "GMANDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GTS": {
@@ -262,72 +262,72 @@
         },
         "STDN": {
             "dataset_class": "STDNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "HGCN": {
             "dataset_class": "HGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STSGCN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STAGGCN": {
             "dataset_class": "STAGGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STNN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "ResLSTM": {
             "dataset_class": "RESLSTMDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "DGCN": {
             "dataset_class": "ASTGCNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "MultiSTGCnet": {
             "dataset_class": "MultiSTGCnetDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STMGAT": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "CRANN": {
             "dataset_class": "CRANNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "DKFN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "STTN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "CONVGCNCommon": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "DSAN": {
             "dataset_class": "TrafficStateGridDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "CCRNN": {
@@ -337,7 +337,7 @@
         },
         "MultiSTGCnetCommon": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GEML": {
@@ -347,17 +347,17 @@
         },
         "FNN": {
             "dataset_class": "TrafficStatePointDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         },
         "GSNet": {
             "dataset_class": "GSNetDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficAccidentEvaluator"
         },
         "CSTN": {
             "dataset_class": "CSTNDataset",
-            "executor": "TrafficStateExecutor",
+            "executor": "TrafficStateBaseExecutor",
             "evaluator": "TrafficStateEvaluator"
         }
     },

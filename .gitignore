@@ -13,4 +13,5 @@
 *.log
 *.err
 *.npy
+*.slurm
 

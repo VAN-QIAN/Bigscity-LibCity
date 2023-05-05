@@ -5,12 +5,12 @@ import os
 from ray import tune
 from libcity.model import loss
 from functools import partial
-from libcity.executor.traffic_state_executor import TrafficStateExecutor
+from libcity.executor.traffic_state_executor_base import TrafficStateBaseExecutor
 
 
-class DCRNNExecutor(TrafficStateExecutor):
+class DCRNNExecutor(TrafficStateBaseExecutor):
     def __init__(self, config, model, data_feature):
-        TrafficStateExecutor.__init__(self, config, model, data_feature)
+        TrafficStateBaseExecutor.__init__(self, config, model, data_feature)
 
     def _build_train_loss(self):
         """

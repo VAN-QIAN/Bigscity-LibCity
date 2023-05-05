@@ -6,6 +6,7 @@ from libcity.executor.line_executor import LINEExecutor
 from libcity.executor.map_matching_executor import MapMatchingExecutor
 from libcity.executor.mtgnn_executor import MTGNNExecutor
 from libcity.executor.traffic_state_executor import TrafficStateExecutor
+from libcity.executor.traffic_state_executor_base import TrafficStateBaseExecutor
 from libcity.executor.traj_loc_pred_executor import TrajLocPredExecutor
 from libcity.executor.abstract_tradition_executor import AbstractTraditionExecutor
 from libcity.executor.chebconv_executor import ChebConvExecutor
@@ -15,6 +16,7 @@ from libcity.executor.gensim_executor import GensimExecutor
 __all__ = [
     "TrajLocPredExecutor",
     "TrafficStateExecutor",
+    "TrafficStateBaseExecutor",
     "DCRNNExecutor",
     "MTGNNExecutor",
     "HyperTuning",

@@ -11,7 +11,7 @@ from libcity.model import loss
 from functools import partial
 
 torch.autograd.set_detect_anomaly(True)
-class TrafficStateExecutor(AbstractExecutor):
+class TrafficStateBaseExecutor(AbstractExecutor):
     def __init__(self, config, model, data_feature):
         self.evaluator = get_evaluator(config)
         self.config = config
@@ -260,7 +260,7 @@ class TrafficStateExecutor(AbstractExecutor):
                 # try:
                 #     output,acs = self.model.predict(batch) #,coutput
                 # except:
-                output,coutput,soutput  = self.model.predict(batch) #,coutput
+                output = self.model.predict(batch) #,coutput
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 batch_size, input_window, num_nodes, input_dim = y_true.shape
                 # cy_true = torch.reshape(y_true, (batch_size, num_nodes, -1))

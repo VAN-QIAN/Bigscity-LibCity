@@ -365,7 +365,7 @@ class MTGNN(AbstractTrafficStateModel):
         self.layer_norm_affline = config.get('layer_norm_affline', True)
 
         self.use_curriculum_learning = config.get('use_curriculum_learning', False)
-        self.step_size = config.get('step_size1', 2500)
+        self.step_size = config.get('step_size1', 1000)
         self.max_epoch = config.get('max_epoch', 100)
         if self.max_epoch * self.num_batches < self.step_size * self.output_window:
             self._logger.warning('Parameter `step_size1` is too big with {} epochs and '
