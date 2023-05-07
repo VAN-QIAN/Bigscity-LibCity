@@ -402,7 +402,7 @@ class GWNET(AbstractTrafficStateModel):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
-                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=1))
+                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=2))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
                                     out_channels=self.end_channels,
