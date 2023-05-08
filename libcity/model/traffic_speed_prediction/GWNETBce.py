@@ -90,10 +90,11 @@ class GCN(nn.Module):
         for a in support:
             x1 = self.nconv(x, a)
             out.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.nconv(x1, a)
-                out.append(x2)
-                x1 = x2
+            if self.order >= 2:
+                for k in range(2, self.order + 1):
+                    x2 = self.nconv(x1, a)
+                    out.append(x2)
+                    x1 = x2
         h = torch.cat(out, dim=1)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
@@ -102,9 +103,9 @@ class GCN(nn.Module):
 class HGCN(nn.Module):
     def __init__(self, c_in, c_out, dropout,afc,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
-        self.fgcn = GCN(c_in, c_out, dropout, support_len)
-        self.cgcn = GCN(c_in, c_out, dropout, support_len)
-        self.sgcn = GCN(c_in, c_out, dropout, support_len)
+        self.gcn = GCN(c_in, c_out, dropout, support_len)
+        # self.gcn = GCN(c_in, c_out, dropout, support_len)
+        # self.gcn = GCN(c_in, c_out, dropout, support_len)
         
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
@@ -148,8 +149,8 @@ class HGCN(nn.Module):
         # out = [x]
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
-        hf = self.fgcn(x,support)
-        hc = self.cgcn(self.afc.t().float() @ x, support_c)
+        hf = self.gcn(x,support)
+        hc = self.gcn(self.afc.t().float() @ x, support_c)
         xs = acs.t().float() @ self.afc.t().float() @ x
         # print(xs.size())
         hs = xs.permute(2,1,0,3)
@@ -166,21 +167,21 @@ class HGCN(nn.Module):
         # print(adj_mxs[0])
         supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
         supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
-        hs = self.sgcn(xs, supports_s)
+        hs = self.gcn(xs, supports_s)
         # for a in support:
         #     # fine-grained
         #     # ac = self.afc.trans @ a @ self.afc
         #     # xc = self.afc @ x
         #     # print(a.shape)
         #     # print(x.shape)
-        #     x1 = self.fgcn.nconv(x,a) # +self.n1 * self.cgcn(xc,ac)
+        #     x1 = self.gcn.nconv(x,a) # +self.n1 * self.gcn(xc,ac)
         #     out.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.fgcn.nconv(x1, a)
+        #         x2 = self.gcn.nconv(x1, a)
         #         out.append(x2)
         #         x1 = x2
         # hf = torch.cat(out, dim=1)
-        # hf = self.fgcn.mlp(hf)
+        # hf = self.gcn.mlp(hf)
         # hf = F.dropout(hf, self.dropout, training=self.training)
 
         # for a in support:
@@ -192,16 +193,16 @@ class HGCN(nn.Module):
         #     # print(x.shape)
         #     xc = self.afc.detach().t().float() @ x
         #     # print('xc '+str(xc.shape))
-        #     x1 = self.cgcn.nconv(xc,ac)
+        #     x1 = self.gcn.nconv(xc,ac)
         #     # print('x1 '+str(x1.shape))
         #     cout.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.cgcn.nconv(x1, ac)
+        #         x2 = self.gcn.nconv(x1, ac)
         #         # print('x2 '+str(x2.shape))
         #         cout.append(x2)
         #         x1 = x2
         # hc = torch.cat(cout, dim=1)
-        # hc= self.cgcn.mlp(hc)
+        # hc= self.gcn.mlp(hc)
         # hc = F.dropout(hc, self.dropout, training=self.training)
 
         # for a in support:
@@ -209,17 +210,17 @@ class HGCN(nn.Module):
         #     # ac = self.afc.t() @ a @ self.afc
         #     asc = acs.t().float() @ self.afc.detach().t().float() @ a @ self.afc.detach().float() @ acs.float()
         #     xs = acs.t().float() @ self.afc.detach().t().float() @ x
-        #     x1 = self.fgcn.nconv(xs,asc)
+        #     x1 = self.gcn.nconv(xs,asc)
         #     sout.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.fgcn.nconv(x1, asc)
+        #         x2 = self.gcn.nconv(x1, asc)
         #         sout.append(x2)
         #         x1 = x2
         #     # link_loss,ent_loss = self.assLoss(ac,acs)
         #     # self._logger.info('link_loss: %.4f'%link_loss)
         #     # self._logger.info('link_loss: %.4f'%ent_loss)
         # hs = torch.cat(sout, dim=1)
-        # hs = self.sgcn.mlp(hs)
+        # hs = self.gcn.mlp(hs)
         # hs = F.dropout(hs, self.dropout, training=self.training)
 
         # print('hf '+str(hf.shape))
@@ -401,7 +402,7 @@ class GWNETBce(AbstractTrafficStateModel):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
-                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len))
+                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=2))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
                                     out_channels=self.end_channels,
@@ -633,12 +634,12 @@ class GWNETBce(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        # y_predicted = self.predict(batch)
+        # y_predicted,cy_predicted = self.predict(batch)
         y_predicted,cy_predicted,hs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
-        ac = self.adj_mx1
+        # ac = self.adj_mx1
         acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
         # print("acs")
         # print(acs)
@@ -676,16 +677,16 @@ class GWNETBce(AbstractTrafficStateModel):
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
-        #othloss = self.othLoss(hs)
+        othloss = self.othLoss(hs)
         # othloss = torch.abs(self.othLoss(hs))
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
         # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} '.format(loss_f,loss_bce,loss_bce0))
-        # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
+        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 #+ othloss  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss  #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)
