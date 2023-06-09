@@ -1,6 +1,11 @@
 {
-	"n1": 0.8,
-	"n2": 0.5,
-	"n3": 0.2,
-	"super_nodes":10
+	"n1": 1,
+	"n2": 1,
+	"n3": 1,
+	"n4": 1,
+	"super_nodes":30,
+	"nhid":32,
+	"order":1,
+	"blocks": 4,
+	"layers": 2
 }

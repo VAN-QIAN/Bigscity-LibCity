@@ -6,10 +6,11 @@
   "teacher_forcing_ratio": 0,
 
   "scaler": "standard",
-  "load_external": true,
+  "rnn_type":"LSTM",
+  "load_external": false,
   "normal_external": false,
   "ext_scaler": "none",
-  "add_time_in_day": true,
+  "add_time_in_day": false,
   "add_day_in_week": false,
 
   "max_epoch": 100,

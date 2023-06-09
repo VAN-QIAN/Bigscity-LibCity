@@ -11,10 +11,12 @@
   "embedding_dim": 100,
 
   "scaler": "standard",
-  "load_external": true,
+  "\\load_external": true,
+  "load_external": false,
   "normal_external": false,
   "ext_scaler": "none",
-  "add_time_in_day": true,
+  "add_time_in_day": false,
+  "\\add_time_in_day": true,
   "add_day_in_week": false,
 
   "max_epoch": 200,

@@ -145,13 +145,15 @@ class HGCN(nn.Module):
 
     #     return link_loss, ent_loss
 
-    def forward(self, x, support,support_c,acs): #,support_s
+    def forward(self, x,xc,xs,support,support_c,acs): #,support_s
         # out = [x]
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         hf = self.gcn(x,support)
-        hc = self.gcn(self.afc.t().float() @ x, support_c)
-        xs = acs.t().float() @ self.afc.t().float() @ x
+        skip_s = xs
+        skip_c = xc
+        hc = self.gcn(xc, support_c)
+        # xs = acs.t().float() @ self.afc.t().float() @ x
         # print(xs.size())
         hs = xs.permute(2,1,0,3)
         hs = torch.reshape(hs,(self.super_nodes,-1))
@@ -226,10 +228,10 @@ class HGCN(nn.Module):
         # print('hf '+str(hf.shape))
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
-        hc = hc + self.n1*torch.sigmoid(acs.float()@hs)
-        hf = hf+self.n2*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
+        hc = hc + 0.5*self.n2*torch.sigmoid(acs.float()@hs) + 0.5*self.n2*torch.sigmoid(acs.float()@skip_s)
+        hf = hf+ 0.5*self.n1*torch.sigmoid(self.afc.float()@hc)+0.5*self.n1*torch.sigmoid(self.afc.float()@skip_c) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        hs = hs+self.n5*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
 
         # hc = hc + self.n2*torch.sigmoid(self.gcn(acs.float()@hs,support_c)) #self.n2*torch.sigmoid(acs.float()@hs) #support_c
         # hf = hf+self.n1*torch.sigmoid(self.gcn(self.afc.float()@hc,support))#self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
@@ -241,7 +243,7 @@ class HGCN(nn.Module):
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class GWNETHg(AbstractTrafficStateModel):
+class GWNETSkip(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -449,6 +451,7 @@ class GWNETHg(AbstractTrafficStateModel):
 
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
+        
 
         # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip_c = 0
@@ -495,6 +498,11 @@ class GWNETHg(AbstractTrafficStateModel):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             # parametrized skip connection
+            # 1. 过TGCN 生成XC XS
+            # 2. 试下放到GCN后
+            xc = self.afc_mx.t().float() @ x
+            xs = acs.t().float() @ self.afc_mx.t().float() @ x
+
             s = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             s = self.skip_convs[i](s)
@@ -504,6 +512,24 @@ class GWNETHg(AbstractTrafficStateModel):
             except(Exception):
                 skip = 0
             skip = s + skip
+
+            # sc = xc
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip_c = skip_c[:, :, :, -s.size(3):]
+            # except(Exception):
+            #     skip_c = 0
+            # skip_c = sc + skip_c
+
+            # ss = xs
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # ss = self.skip_convs[i](ss)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip_s = skip_s[:, :, :, -s.size(3):]
+            # except(Exception):
+            #     skip_s = 0
+            # skip_s = ss + skip_s
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
             # filter_c = self.filter_convs[i](residual_c)
@@ -553,7 +579,7 @@ class GWNETHg(AbstractTrafficStateModel):
                 else:
                     # self._logger.info('gconv') ,xs
                     # GCN前初始化
-                    x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,acs) #,self.supports_s
+                    x,xc,xs = self.gconv[i](x,xc,xs,self.supports,self.supports_c,acs) #,self.supports_s
                     # learned_acsmx.append(learned_acs)
                     
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
@@ -699,7 +725,6 @@ class GWNETHg(AbstractTrafficStateModel):
         # sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         # link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
-        # loss_f1 = loss.masked_rmse_torch(y_predicted, y_true, 0)
         # x1 = torch.reshape(ac_hat, (-1,))
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
@@ -713,7 +738,7 @@ class GWNETHg(AbstractTrafficStateModel):
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
         self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + 0.01*loss_bce + 0.1*othloss + 0.01*loss_bce0 #+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)

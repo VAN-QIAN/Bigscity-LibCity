@@ -226,10 +226,10 @@ class HGCN(nn.Module):
         # print('hf '+str(hf.shape))
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
-        hc = hc + self.n1*torch.sigmoid(acs.float()@hs)
+        # hc = hc + self.n1*torch.sigmoid(acs.float()@hs)
         hf = hf+self.n2*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
         hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        # comment this line on May22 hs = hs+self.n4*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
 
         # hc = hc + self.n2*torch.sigmoid(self.gcn(acs.float()@hs,support_c)) #self.n2*torch.sigmoid(acs.float()@hs) #support_c
         # hf = hf+self.n1*torch.sigmoid(self.gcn(self.afc.float()@hc,support))#self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
@@ -238,10 +238,10 @@ class HGCN(nn.Module):
         
         # as_hat = F.sigmoid(hs.float() @ hs.t().float())
 
-        return hf,hc,hs#,ac_hat#,as_hat
+        return hf,hc #,hs#,ac_hat#,as_hat
 
 
-class GWNETHg(AbstractTrafficStateModel):
+class GWNETFC(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -660,8 +660,8 @@ class GWNETHg(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        # y_predicted,cy_predicted = self.predict(batch)
-        y_predicted,cy_predicted,hs = self.predict(batch)
+        y_predicted,cy_predicted = self.predict(batch)
+        # y_predicted,cy_predicted,hs = self.predict(batch)
         # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
@@ -678,15 +678,15 @@ class GWNETHg(AbstractTrafficStateModel):
         # print(hct.size())
         af_hat = torch.sigmoid(hf.float() @ hft.float())
 
-        nc = acs.float()@hs
+        # nc = acs.float()@hs
         # print(nc.size())
-        hc = nc.permute(2,1,0,3)
-        hc = torch.reshape(hc,(self.coarse_nodes,-1))
+        # hc = nc.permute(2,1,0,3)
+        # hc = torch.reshape(hc,(self.coarse_nodes,-1))
         # print(hc.size())
-        hct = nc.permute(3,0,1,2)
-        hct = torch.reshape(hct,(-1,self.coarse_nodes))
+        # hct = nc.permute(3,0,1,2)
+        # hct = torch.reshape(hct,(-1,self.coarse_nodes))
         # print(hct.size())
-        ac_hat = torch.sigmoid(hc.float() @ hct.float())
+        # ac_hat = torch.sigmoid(hc.float() @ hct.float())
         # print(ac_hat.size())
         # print(self.adj_mx1.size())
         
@@ -703,17 +703,17 @@ class GWNETHg(AbstractTrafficStateModel):
         # x1 = torch.reshape(ac_hat, (-1,))
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
-        loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
-        othloss = self.othLoss(hs)
+        # loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
+        # othloss = self.othLoss(hs)
         # othloss = torch.abs(self.othLoss(hs))
         # loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
         # loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
         # train_loss = loss_f + loss_c + loss_s
-        # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
-        # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
-        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
+        # self._logger.info('link_loss: {0} bce_loss0:{1}'.format(link_loss,ent_loss))
+        self._logger.info('fine_loss: {0} bce_loss0:{1} oth_loss:{2} '.format(loss_f,loss_bce0))
+        # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f  + 0.01*loss_bce0 #+ 0.1*othloss + + 0.01*loss_bce #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)

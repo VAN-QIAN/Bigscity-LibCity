@@ -11,7 +11,10 @@
 /libcity/model/*/__pycache__
 /libcity/data/dataset/*/__pycache__
 *.log
+*.json
 *.err
 *.npy
 *.slurm
+*.csv
+/test/*
 

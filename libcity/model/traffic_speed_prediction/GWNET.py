@@ -103,9 +103,9 @@ class GCN(nn.Module):
 class HGCN(nn.Module):
     def __init__(self, c_in, c_out, dropout,afc,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
-        self.fgcn = GCN(c_in, c_out, dropout, support_len)
-        self.cgcn = GCN(c_in, c_out, dropout, support_len)
-        self.sgcn = GCN(c_in, c_out, dropout, support_len)
+        self.fgcn = GCN(c_in, c_out, dropout, support_len,order)
+        # self.cgcn = GCN(c_in, c_out, dropout, support_len)
+        self.sgcn = GCN(c_in, c_out, dropout, support_len,order)
         
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
@@ -150,7 +150,7 @@ class HGCN(nn.Module):
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
         hf = self.fgcn(x,support)
-        hc = self.cgcn(self.afc.t().float() @ x, support_c)
+        hc = self.fgcn(self.afc.t().float() @ x, support_c)
         xs = acs.t().float() @ self.afc.t().float() @ x
         # print(xs.size())
         hs = xs.permute(2,1,0,3)

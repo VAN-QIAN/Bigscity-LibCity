@@ -226,10 +226,10 @@ class HGCN(nn.Module):
         # print('hf '+str(hf.shape))
         # print('hc '+str(hc.shape))
         # print('hs '+str(hs.shape))
-        hc = hc + self.n1*torch.sigmoid(acs.float()@hs)
-        hf = hf+self.n2*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
-        hc = hc+self.n3*torch.sigmoid(self.afc.t().float()@hf)
-        hs = hs+self.n4*torch.sigmoid(acs.t().float()@hc) #+self.n4*torch.sigmoid(acs.t().float()@self.afc.t().float()@hf)
+        hc = hc + self.n1*F.relu(acs.float()@hs)
+        hf = hf+self.n2*F.relu(self.afc.float()@hc) #+self.n2*F.relu(self.afc.float()@acs.float()@hs)
+        hc = hc+self.n3*F.relu(self.afc.t().float()@hf)
+        hs = hs+self.n4*F.relu(acs.t().float()@hc)
 
         # hc = hc + self.n2*torch.sigmoid(self.gcn(acs.float()@hs,support_c)) #self.n2*torch.sigmoid(acs.float()@hs) #support_c
         # hf = hf+self.n1*torch.sigmoid(self.gcn(self.afc.float()@hc,support))#self.n1*torch.sigmoid(self.afc.float()@hc) #+self.n2*torch.sigmoid(self.afc.float()@acs.float()@hs)
@@ -241,7 +241,7 @@ class HGCN(nn.Module):
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class GWNETHg(AbstractTrafficStateModel):
+class GWNETLW(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -626,8 +626,8 @@ class GWNETHg(AbstractTrafficStateModel):
     
     def othLoss(self,hc):
         # hc = (batch_size, end_channels, num_nodes, self.output_dim)
-        hc = hc.squeeze(3)
-        hc = hc.permute(2,0,1)
+        # hc = hc.squeeze(3)
+        hc = hc.permute(2,0,1,3)
         hc = torch.reshape(hc,(self.super_nodes,-1))
         # print('hc.size')
         # print(hc.size())

@@ -241,7 +241,7 @@ class HGCN(nn.Module):
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class GWNETHg(AbstractTrafficStateModel):
+class GWNETRMSE(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         self.adj_mx = data_feature.get('adj_mx')
         self.afc = data_feature.get('afc_mx')
@@ -699,7 +699,7 @@ class GWNETHg(AbstractTrafficStateModel):
         # sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
         # link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
-        # loss_f1 = loss.masked_rmse_torch(y_predicted, y_true, 0)
+        loss_f1 = loss.masked_rmse_torch(y_predicted, y_true, 0)
         # x1 = torch.reshape(ac_hat, (-1,))
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
@@ -713,7 +713,7 @@ class GWNETHg(AbstractTrafficStateModel):
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
         self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 
     def predict(self, batch):
         return self.forward(batch)

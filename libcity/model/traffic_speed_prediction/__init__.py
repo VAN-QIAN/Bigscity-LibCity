@@ -5,6 +5,12 @@ from libcity.model.traffic_speed_prediction.GWNETBce import GWNETBce
 from libcity.model.traffic_speed_prediction.GWNETRes import GWNETRes
 from libcity.model.traffic_speed_prediction.GWNETRelu import GWNETRelu
 from libcity.model.traffic_speed_prediction.GWNETHg import GWNETHg
+from libcity.model.traffic_speed_prediction.GWNETFS import GWNETFS
+from libcity.model.traffic_speed_prediction.GWNETFSB import GWNETFSB
+from libcity.model.traffic_speed_prediction.GWNETFC import GWNETFC
+from libcity.model.traffic_speed_prediction.GWNETLW import GWNETLW
+from libcity.model.traffic_speed_prediction.GWNETRMSE import GWNETRMSE
+from libcity.model.traffic_speed_prediction.GWNETOG import GWNETOG
 from libcity.model.traffic_speed_prediction.MTGNN import MTGNN
 from libcity.model.traffic_speed_prediction.TGCLSTM import TGCLSTM
 from libcity.model.traffic_speed_prediction.TGCN import TGCN
@@ -21,6 +27,8 @@ from libcity.model.traffic_speed_prediction.STMGAT import STMGAT
 from libcity.model.traffic_speed_prediction.DKFN import DKFN
 from libcity.model.traffic_speed_prediction.STTN import STTN
 from libcity.model.traffic_speed_prediction.FNN import FNN
+from libcity.model.traffic_speed_prediction.TRANS import TRANS
+from libcity.model.traffic_speed_prediction.TRANS1 import TRANS1
 
 __all__ = [
     "DCRNN",
@@ -45,5 +53,13 @@ __all__ = [
     "GWNETBce",
     "GWNETRes",
     "GWNETRelu",
-    "GWNETHg"
+    "GWNETHg",
+    "GWNETFC",
+    "GWNETFS",
+    "GWNETFSB",
+    "GWNETOG",
+    "GWNETLW",
+    "GWNETRMSE",
+    "TRANS",
+    "TRANS1"
 ]

@@ -10,7 +10,7 @@ from libcity.utils import get_evaluator, ensure_dir
 from libcity.model import loss
 from functools import partial
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 class TrafficStateExecutor(AbstractExecutor):
     def __init__(self, config, model, data_feature):
         self.evaluator = get_evaluator(config)

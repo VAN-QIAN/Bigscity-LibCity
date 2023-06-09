@@ -90,10 +90,11 @@ class GCN(nn.Module):
         for a in support:
             x1 = self.nconv(x, a)
             out.append(x1)
-            for k in range(2, self.order + 1):
-                x2 = self.nconv(x1, a)
-                out.append(x2)
-                x1 = x2
+            if self.order >= 2:
+                for k in range(2, self.order + 1):
+                    x2 = self.nconv(x1, a)
+                    out.append(x2)
+                    x1 = x2
         h = torch.cat(out, dim=1)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
@@ -102,9 +103,9 @@ class GCN(nn.Module):
 class HGCN(nn.Module):
     def __init__(self, c_in, c_out, dropout,afc,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
-        self.fgcn = GCN(c_in, c_out, dropout, support_len)
-        self.cgcn = GCN(c_in, c_out, dropout, support_len)
-        self.sgcn = GCN(c_in, c_out, dropout, support_len)
+        self.gcn = GCN(c_in, c_out, dropout, support_len,order)
+        # self.gcn = GCN(c_in, c_out, dropout, support_len)
+        # self.gcn = GCN(c_in, c_out, dropout, support_len)
         
         self.coarse_nodes = coarse_nodes
         self.super_nodes = super_nodes
@@ -148,8 +149,8 @@ class HGCN(nn.Module):
         # out = [x]
         # cout = [self.afc.detach().t().float() @ x]
         # sout = [acs.t().float() @ self.afc.detach().t().float() @ x]
-        hf = self.fgcn(x,support)
-        hc = self.cgcn(self.afc.t().float() @ x, support_c)
+        hf = self.gcn(x,support)
+        hc = self.gcn(self.afc.t().float() @ x, support_c)
         xs = acs.t().float() @ self.afc.t().float() @ x
         # print(xs.size())
         hs = xs.permute(2,1,0,3)
@@ -166,21 +167,21 @@ class HGCN(nn.Module):
         # print(adj_mxs[0])
         supports_s = [torch.tensor(i).to(self._device) for i in adj_mxs]
         supports_s = [F.softmax(i,dim=-1).to(self._device) for i in supports_s]
-        hs = self.sgcn(xs, supports_s)
+        hs = self.gcn(xs, supports_s)
         # for a in support:
         #     # fine-grained
         #     # ac = self.afc.trans @ a @ self.afc
         #     # xc = self.afc @ x
         #     # print(a.shape)
         #     # print(x.shape)
-        #     x1 = self.fgcn.nconv(x,a) # +self.n1 * self.cgcn(xc,ac)
+        #     x1 = self.gcn.nconv(x,a) # +self.n1 * self.gcn(xc,ac)
         #     out.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.fgcn.nconv(x1, a)
+        #         x2 = self.gcn.nconv(x1, a)
         #         out.append(x2)
         #         x1 = x2
         # hf = torch.cat(out, dim=1)
-        # hf = self.fgcn.mlp(hf)
+        # hf = self.gcn.mlp(hf)
         # hf = F.dropout(hf, self.dropout, training=self.training)
 
         # for a in support:
@@ -192,16 +193,16 @@ class HGCN(nn.Module):
         #     # print(x.shape)
         #     xc = self.afc.detach().t().float() @ x
         #     # print('xc '+str(xc.shape))
-        #     x1 = self.cgcn.nconv(xc,ac)
+        #     x1 = self.gcn.nconv(xc,ac)
         #     # print('x1 '+str(x1.shape))
         #     cout.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.cgcn.nconv(x1, ac)
+        #         x2 = self.gcn.nconv(x1, ac)
         #         # print('x2 '+str(x2.shape))
         #         cout.append(x2)
         #         x1 = x2
         # hc = torch.cat(cout, dim=1)
-        # hc= self.cgcn.mlp(hc)
+        # hc= self.gcn.mlp(hc)
         # hc = F.dropout(hc, self.dropout, training=self.training)
 
         # for a in support:
@@ -209,17 +210,17 @@ class HGCN(nn.Module):
         #     # ac = self.afc.t() @ a @ self.afc
         #     asc = acs.t().float() @ self.afc.detach().t().float() @ a @ self.afc.detach().float() @ acs.float()
         #     xs = acs.t().float() @ self.afc.detach().t().float() @ x
-        #     x1 = self.fgcn.nconv(xs,asc)
+        #     x1 = self.gcn.nconv(xs,asc)
         #     sout.append(x1)
         #     for k in range(2, self.order + 1):
-        #         x2 = self.fgcn.nconv(x1, asc)
+        #         x2 = self.gcn.nconv(x1, asc)
         #         sout.append(x2)
         #         x1 = x2
         #     # link_loss,ent_loss = self.assLoss(ac,acs)
         #     # self._logger.info('link_loss: %.4f'%link_loss)
         #     # self._logger.info('link_loss: %.4f'%ent_loss)
         # hs = torch.cat(sout, dim=1)
-        # hs = self.sgcn.mlp(hs)
+        # hs = self.gcn.mlp(hs)
         # hs = F.dropout(hs, self.dropout, training=self.training)
 
         # print('hf '+str(hf.shape))
@@ -263,6 +264,7 @@ class GWNETRes(AbstractTrafficStateModel):
         self.input_window = config.get('input_window', 1)
         self.output_window = config.get('output_window', 1)
         self.output_dim = self.data_feature.get('output_dim', 1)
+        self.order = config.get('order', 2)
         self.device = config.get('device', torch.device('cpu'))
         self.afc_mx = torch.from_numpy(self.afc).detach().to(device=self.device)
         self.af = torch.from_numpy(self.adj_mx).detach().to(device=self.device)
@@ -401,7 +403,7 @@ class GWNETRes(AbstractTrafficStateModel):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
-                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len))
+                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=self.order))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
                                     out_channels=self.end_channels,
@@ -443,11 +445,11 @@ class GWNETRes(AbstractTrafficStateModel):
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
 
-        # xc = self.afc_mx.t().float() @ x #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_c = 0
+        # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        # skip_c = 0
 
-        # xs = xs = acs.t().float() @ xc #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_s = 0
+        # xs = self.start_conv(xs) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        # skip_s = 0
 
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
@@ -485,25 +487,18 @@ class GWNETRes(AbstractTrafficStateModel):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             gate = torch.sigmoid(gate)
             x = filter * gate
-
-            xc = self.afc_mx.t().float() @ x 
-            xs = acs.t().float() @ xc
-            residual_c = xc
-            residual_s = xs
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
-            s = x
+            # s = x
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # s = self.skip_convs[i](s)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip = skip[:, :, :, -s.size(3):]
+            # except(Exception):
+            #     skip = 0
+            # skip = s + skip
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            s = self.skip_convs[i](s)
-            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip = skip[:, :, :, -s.size(3):]
-            except(Exception):
-                skip = 0
-            skip = s + skip
-
-            sc = self.afc_mx.t().float() @ s
-            ss = acs.t().float() @ sc
+            
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
@@ -520,11 +515,11 @@ class GWNETRes(AbstractTrafficStateModel):
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # sc = self.skip_convs[i](sc)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip_c = skip_c[:, :, :, -sc.size(3):]
-            except(Exception):
-                skip_c = 0
-            skip_c = sc + skip_c
+            # try:
+            #     skip_c = skip_c[:, :, :, -sc.size(3):]
+            # except(Exception):
+            #     skip_c = 0
+            # skip_c = sc + skip_c
 
             # # super-grained inputs 521-539
             # filter_s = self.filter_convs[i](residual_s)
@@ -540,11 +535,11 @@ class GWNETRes(AbstractTrafficStateModel):
             # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # ss = self.skip_convs[i](ss)
             # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
-            try:
-                skip_s = skip_s[:, :, :, -ss.size(3):]
-            except(Exception):
-                skip_s = 0
-            skip_s = ss + skip_s
+            # try:
+            #     skip_s = skip_s[:, :, :, -ss.size(3):]
+            # except(Exception):
+            #     skip_s = 0
+            # skip_s = ss + skip_s
 
             if self.gcn_bool and self.supports is not None:
                 # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -564,9 +559,19 @@ class GWNETRes(AbstractTrafficStateModel):
                 x = self.residual_convs[i](x)
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
+            # parametrized skip connection
+            s = x
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            s = self.skip_convs[i](s)
+            # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            try:
+                skip = skip[:, :, :, -s.size(3):]
+            except(Exception):
+                skip = 0
+            skip = s + skip
             x = x + residual[:, :, :, -x.size(3):]
-            xc = xc + residual_c[:, :, :, -xc.size(3):]
-            xs = xs + residual_s[:, :, :, -xs.size(3):]
+            # xc = xc + residual_c[:, :, :, -xc.size(3):]
+            # xs = xs + residual_s[:, :, :, -xs.size(3):]
             
             # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             x = self.bn[i](x)
@@ -574,8 +579,8 @@ class GWNETRes(AbstractTrafficStateModel):
             xc = self.bnc[i](xc)
             xs = self.bns[i](xs)
         x = F.relu(skip)
-        xc = F.relu(skip_c)
-        xs = F.relu(skip_s)
+        # xc = F.relu(skip_c)
+        # xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释

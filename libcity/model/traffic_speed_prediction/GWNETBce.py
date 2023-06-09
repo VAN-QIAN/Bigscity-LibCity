@@ -103,7 +103,7 @@ class GCN(nn.Module):
 class HGCN(nn.Module):
     def __init__(self, c_in, c_out, dropout,afc,super_nodes,coarse_nodes,device,n1=0.8,n2=0.2,n3=0.2,n4=0.2,n5=0.2 ,support_len=3, order=2):
         super(HGCN, self).__init__()
-        self.gcn = GCN(c_in, c_out, dropout, support_len)
+        self.gcn = GCN(c_in, c_out, dropout, support_len,order)
         # self.gcn = GCN(c_in, c_out, dropout, support_len)
         # self.gcn = GCN(c_in, c_out, dropout, support_len)
         
@@ -264,6 +264,7 @@ class GWNETBce(AbstractTrafficStateModel):
         self.input_window = config.get('input_window', 1)
         self.output_window = config.get('output_window', 1)
         self.output_dim = self.data_feature.get('output_dim', 1)
+        self.order = config.get('order', 2)
         self.device = config.get('device', torch.device('cpu'))
         self.afc_mx = torch.from_numpy(self.afc).detach().to(device=self.device)
         self.af = torch.from_numpy(self.adj_mx).detach().to(device=self.device)
@@ -316,7 +317,7 @@ class GWNETBce(AbstractTrafficStateModel):
         self.cal_adj(self.adjtype)
         self.supports = [torch.tensor(i).to(self.device) for i in self.adj_mx]
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
-        self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
+        # self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
 
 
 
@@ -402,7 +403,7 @@ class GWNETBce(AbstractTrafficStateModel):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
-                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=2))
+                                          ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=self.order))
 
         self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
                                     out_channels=self.end_channels,
@@ -486,7 +487,6 @@ class GWNETBce(AbstractTrafficStateModel):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             gate = torch.sigmoid(gate)
             x = filter * gate
-            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             s = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -497,6 +497,8 @@ class GWNETBce(AbstractTrafficStateModel):
             except(Exception):
                 skip = 0
             skip = s + skip
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
             # # course-grained inputs 501-519，先全注释掉（TCN先注释掉），再看skip_conv
@@ -557,6 +559,16 @@ class GWNETBce(AbstractTrafficStateModel):
                 x = self.residual_convs[i](x)
                 # (batch_size, residual_channels, num_nodes, receptive_field-kernel_size+1)
             # residual: (batch_size, residual_channels, num_nodes, self.receptive_field)
+            # # parametrized skip connection
+            # s = x
+            # # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # s = self.skip_convs[i](s)
+            # # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
+            # try:
+            #     skip = skip[:, :, :, -s.size(3):]
+            # except(Exception):
+            #     skip = 0
+            # skip = s + skip
             x = x + residual[:, :, :, -x.size(3):]
             # xc = xc + residual_c[:, :, :, -xc.size(3):]
             # xs = xs + residual_s[:, :, :, -xs.size(3):]
