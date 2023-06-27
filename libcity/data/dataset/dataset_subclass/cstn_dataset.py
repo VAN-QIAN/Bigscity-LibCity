@@ -69,7 +69,7 @@ class CSTNDataset(TrafficStateGridOdDataset):
         num_train = round(num_samples * self.train_rate)
         num_eval = num_samples - num_test - num_train
         # train
-        x_train, w_train, y_train = X[:num_train], W[:num_train], y[:num_train]
+        x_train, w_train, y_train = X[num_train-10*12*24:num_train], W[num_train-10*12*24:num_train], y[num_train-10*12*24:num_train]
 
         # eval
         x_eval, w_eval, y_eval = X[num_train: num_train + num_eval], \

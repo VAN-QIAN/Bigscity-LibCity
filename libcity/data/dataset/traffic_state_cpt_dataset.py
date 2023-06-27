@@ -281,8 +281,8 @@ class TrafficStateCPTDataset(TrafficStateDataset):
         num_train = round(num_samples * self.train_rate)
         num_val = num_samples - num_test - num_train
 
-        x_train, x_val, x_test = x[:num_train], x[num_train: num_train + num_val], x[-num_test:]
-        y_train, y_val, y_test = y[:num_train], y[num_train: num_train + num_val], y[-num_test:]
+        x_train, x_val, x_test = x[num_train-10*12*24:num_train], x[num_train: num_train + num_val], x[-num_test:]
+        y_train, y_val, y_test = y[num_train-10*12*24:num_train], y[num_train: num_train + num_val], y[-num_test:]
         ext_x_train, ext_x_val, ext_x_test = ext_x[:num_train], ext_x[num_train: num_train + num_val], ext_x[-num_test:]
         ext_y_train, ext_y_val, ext_y_test = ext_y[:num_train], ext_y[num_train: num_train + num_val], ext_y[-num_test:]
         self._logger.info("train\t" + "x: " + str(x_train.shape) + ", y: " + str(y_train.shape)

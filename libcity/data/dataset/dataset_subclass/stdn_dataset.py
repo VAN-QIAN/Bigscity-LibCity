@@ -350,14 +350,14 @@ class STDNDataset(TrafficStateDataset):
         num_val = num_samples - num_test - num_train
 
         # train
-        x_train = x[:num_train]
-        y_train = y[:num_train]
-        flatten_att_nbhd_inputs_train = flatten_att_nbhd_inputs[:num_train]
-        flatten_att_flow_inputs_train = flatten_att_flow_inputs[:num_train]
-        att_lstm_inputs_train = att_lstm_inputs[:num_train]
-        nbhd_inputs_train = nbhd_inputs[:num_train]
-        flow_inputs_train = flow_inputs[:num_train]
-        lstm_inputs_train = lstm_inputs[:num_train]
+        x_train = x[num_train-10*12*24:num_train]
+        y_train = y[num_train-10*12*24:num_train]
+        flatten_att_nbhd_inputs_train = flatten_att_nbhd_inputs[num_train-10*12*24:num_train]
+        flatten_att_flow_inputs_train = flatten_att_flow_inputs[num_train-10*12*24:num_train]
+        att_lstm_inputs_train = att_lstm_inputs[num_train-10*12*24:num_train]
+        nbhd_inputs_train = nbhd_inputs[num_train-10*12*24:num_train]
+        flow_inputs_train = flow_inputs[num_train-10*12*24:num_train]
+        lstm_inputs_train = lstm_inputs[num_train-10*12*24:num_train]
         # val
         x_val = x[num_train: num_train + num_val]
         y_val = y[num_train: num_train + num_val]

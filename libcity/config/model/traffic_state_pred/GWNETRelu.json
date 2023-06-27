@@ -8,7 +8,7 @@
   "randomadj": true,
   "aptonly": false,
   "kernel_size": 2,
-  "scaler": "standard",
+  "scaler": "minmax11",
   "load_external": true,
   "normal_external": false,
   "ext_scaler": "none",

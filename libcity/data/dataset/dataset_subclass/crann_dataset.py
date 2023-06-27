@@ -61,7 +61,7 @@ class CRANNDataset(TrafficStatePointDataset):
 
         # train
         x_time_train, x_space_train, x_ext_train, y_train = \
-            x_time[:num_train], x_space[:num_train], x_ext[:num_train], y[:num_train]
+            x_time[num_train-10*12*24:num_train], x_space[num_train-10*12*24:num_train], x_ext[num_train-10*12*24:num_train], y[num_train-10*12*24:num_train]
         # val
         x_time_val, x_space_val, x_ext_val, y_val = \
             x_time[num_train: num_train + num_val], x_space[num_train: num_train + num_val], \
