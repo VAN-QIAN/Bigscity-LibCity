@@ -1,4 +1,14 @@
-{
+{   
+    "transfer":{
+        "allowed_model": ["HIEST"],
+        "allowed_dataset": ["METR_LA", "PEMS_BAY", "PEMSD3", "PEMSD4", "PEMSD7", "PEMSD8","PEMSD7(M)"],
+        "HIEST": {
+            "source_dataset_class": "TransTrafficStatePointDataset",
+            "target_dataset_class": "TransTrafficStatePointDataset",
+            "executor": "TransTrafficStateExecutor",
+            "evaluator": "TransTrafficStateEvaluator"
+        }
+    },
     "traj_loc_pred": {
         "allowed_model": ["DeepMove", "RNN", "LSTM", "GRU", "FPMC", "LSTPM", "STRNN", "SERM", "TemplateTLP", "ATSTLSTM", "HSTLSTM", "STAN", "CARA", "GeoSAN"],
         "allowed_dataset": ["foursquare_tky", "foursquare_nyc", "gowalla", "foursquare_serm"],

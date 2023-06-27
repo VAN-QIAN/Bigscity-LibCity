@@ -8,7 +8,7 @@ from ray.tune.suggest import ConcurrencyLimiter
 import json
 import torch
 import random
-from libcity.config import ConfigParser
+from libcity.config import ConfigParser,TransConfigParser
 from libcity.data import get_dataset
 from libcity.utils import get_executor, get_model, get_logger, ensure_dir, set_random_seed
 
@@ -61,6 +61,118 @@ def run_model(task=None, model_name=None, dataset_name=None, config_file=None,
         executor.load_model(model_cache_file)
     # 评估，评估结果将会放在 cache/evaluate_cache 下
     executor.evaluate(test_data)
+
+
+def parse_search_space(space_file):
+    search_space = {}
+    if os.path.exists('./{}.json'.format(space_file)):
+        with open('./{}.json'.format(space_file), 'r') as f:
+            paras_dict = json.load(f)
+            for name in paras_dict:
+                paras_type = paras_dict[name]['type']
+                if paras_type == 'uniform':
+                    # name type low up
+                    try:
+                        search_space[name] = tune.uniform(paras_dict[name]['lower'], paras_dict[name]['upper'])
+                    except:
+                        raise TypeError('The space file does not meet the format requirements,\
+                            when parsing uniform type.')
+                elif paras_type == 'randn':
+                    # name type mean sd
+                    try:
+                        search_space[name] = tune.randn(paras_dict[name]['mean'], paras_dict[name]['sd'])
+                    except:
+                        raise TypeError('The space file does not meet the format requirements,\
+                            when parsing randn type.')
+                elif paras_type == 'randint':
+                    # name type lower upper
+                    try:
+                        if 'lower' not in paras_dict[name]:
+                            search_space[name] = tune.randint(paras_dict[name]['upper'])
+                        else:
+                            search_space[name] = tune.randint(paras_dict[name]['lower'], paras_dict[name]['upper'])
+                    except:
+                        raise TypeError('The space file does not meet the format requirements,\
+                            when parsing randint type.')
+                elif paras_type == 'choice':
+                    # name type list
+                    try:
+                        search_space[name] = tune.choice(paras_dict[name]['list'])
+                    except:
+                        raise TypeError('The space file does not meet the format requirements,\
+                            when parsing choice type.')
+                elif paras_type == 'grid_search':
+                    # name type list
+                    try:
+                        search_space[name] = tune.grid_search(paras_dict[name]['list'])
+                    except:
+                        raise TypeError('The space file does not meet the format requirements,\
+                            when parsing grid_search type.')
+                else:
+                    raise TypeError('The space file does not meet the format requirements,\
+                            when parsing an undefined type.')
+    else:
+        raise FileNotFoundError('The space file {}.json is not found. Please ensure \
+            the config file is in the root dir and is a txt.'.format(space_file))
+    return search_space
+
+
+def transfer(task=None, model_name=None, source_dataset_name=None,target_dataset_name=None, config_file=None,
+              saved_model=True, train=True, other_args=None):
+    # TODO:
+    # 1. Pretrain
+    # 2. Finetune
+    # 3. 单对单
+
+    """
+    Args:
+        task(str): task name
+        model_name(str): model name
+        dataset_name(str): dataset name
+        config_file(str): config filename used to modify the pipeline's
+            settings. the config file should be json.
+        saved_model(bool): whether to save the model
+        train(bool): whether to train the model
+        other_args(dict): the rest parameter args, which will be pass to the Config
+    """
+    # load config
+    config = TransConfigParser(task, model_name, source_dataset_name,target_dataset_name,
+                          config_file, saved_model, train, other_args)
+    exp_id = config.get('exp_id', None)
+    if exp_id is None:
+        # Make a new experiment ID
+        exp_id = int(random.SystemRandom().random() * 100000)
+        config['exp_id'] = exp_id
+    # logger
+    logger = get_logger(config)
+    logger.info('Begin pipeline, task={}, model_name={}, source_dataset_name={}, exp_id={}'.
+                format(str(task), str(model_name), str(source_dataset_name), str(exp_id)))
+    logger.info(config.config)
+    # seed
+    seed = config.get('seed', 0)
+    set_random_seed(seed)
+    # 加载数据集
+    dataset = get_dataset(config)
+    # 转换数据，并划分数据集
+    train_data, valid_data, test_data,train_data_t, valid_data_t, test_data_t = dataset.get_data() # 重写source target的两个数据记得
+    data_feature = dataset.get_data_feature()
+    # 加载执行器
+    model_cache_file = './libcity/cache/{}/model_cache/{}_{}.m'.format(
+        exp_id, model_name, source_dataset_name)
+    model = get_model(config, data_feature , source=True)
+    target_model = get_model(config, data_feature, source=False)#在Source pretrain和在target fine-tune
+    executor = get_executor(config, model, target_model,data_feature)
+    # 训练
+    if train or not os.path.exists(model_cache_file):
+        executor.train(train_data, valid_data) #train_data, valid_data
+        if saved_model:
+            executor.save_model(model_cache_file)
+    else:
+        executor.load_model(model_cache_file)
+    # 评估，评估结果将会放在 cache/evaluate_cache 下
+    # executor.evaluate(test_data)
+    executor.tune(train_data_t, valid_data_t)
+    executor.evaluate(test_data_t)
 
 
 def parse_search_space(space_file):

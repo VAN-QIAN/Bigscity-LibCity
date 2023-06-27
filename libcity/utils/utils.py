@@ -8,7 +8,7 @@ import random
 import torch
 
 
-def get_executor(config, model, data_feature):
+def get_executor(config, model, target_model,data_feature):
     """
     according the config['executor'] to create the executor
 
@@ -21,12 +21,12 @@ def get_executor(config, model, data_feature):
     """
     try:
         return getattr(importlib.import_module('libcity.executor'),
-                       config['executor'])(config, model, data_feature)
+                       config['executor'])(config, model,target_model ,data_feature)
     except AttributeError:
         raise AttributeError('executor is not found')
 
 
-def get_model(config, data_feature):
+def get_model(config, data_feature ,source):
     """
     according the config['model'] to create the model
 
@@ -43,14 +43,14 @@ def get_model(config, data_feature):
                            config['model'])(config, data_feature)
         except AttributeError:
             raise AttributeError('model is not found')
-    elif config['task'] == 'traffic_state_pred':
+    elif config['task'] == 'traffic_state_pred' or  config['task'] == 'transfer':
         try:
             return getattr(importlib.import_module('libcity.model.traffic_flow_prediction'),
-                           config['model'])(config, data_feature)
+                           config['model'])(config, data_feature, source)
         except AttributeError:
             try:
                 return getattr(importlib.import_module('libcity.model.traffic_speed_prediction'),
-                               config['model'])(config, data_feature)
+                               config['model'])(config, data_feature, source)
             except AttributeError:
                 try:
                     return getattr(importlib.import_module('libcity.model.traffic_demand_prediction'),
@@ -119,7 +119,7 @@ def get_logger(config, name=None):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     log_filename = '{}-{}-{}-{}.log'.format(config['exp_id'],
-                                            config['model'], config['dataset'], get_local_time())
+                                            config['model'], config['source_dataset'], get_local_time())
     logfilepath = os.path.join(log_dir, log_filename)
 
     logger = logging.getLogger(name)
