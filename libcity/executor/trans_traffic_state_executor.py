@@ -160,7 +160,8 @@ class TransTrafficStateExecutor(AbstractExecutor):
         model_path = self.cache_dir + '/' + self.config['model'] + '_' + self.config['dataset'] + '_epoch%d.tar' % self.best_epoch_idx
         assert os.path.exists(model_path), 'Weights at epoch %d not found' % self.best_epoch_idx
         checkpoint = torch.load(model_path, map_location='cpu')
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        pretrained_dict = checkpoint['model_state_dict']
+        self.model.load_state_dict(pretrained_dict.pop("acs"))
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(self.best_epoch_idx))
 
