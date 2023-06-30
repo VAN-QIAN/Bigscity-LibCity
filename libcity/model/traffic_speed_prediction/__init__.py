@@ -29,11 +29,13 @@ from libcity.model.traffic_speed_prediction.STTN import STTN
 from libcity.model.traffic_speed_prediction.FNN import FNN
 from libcity.model.traffic_speed_prediction.TRANS import TRANS
 from libcity.model.traffic_speed_prediction.TRANS1 import TRANS1
+from libcity.model.traffic_speed_prediction.HIEST import HIEST
 
 __all__ = [
     "DCRNN",
     "STGCN",
     "GWNET",
+    "HIEST",
     "TGCLSTM",
     "TGCN",
     "TemplateTSP",
