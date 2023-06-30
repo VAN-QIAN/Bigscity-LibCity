@@ -130,7 +130,8 @@ class TransTrafficStateExecutor(AbstractExecutor):
         config['model_state_dict'] = self.model.state_dict()
         config['optimizer_state_dict'] = self.optimizer.state_dict()
         config['epoch'] = epoch
-        model_path = self.cache_dir + '/' + self.config['model'] + '_tuned_' + self.config['dataset'] + '_epoch%d.tar' % epoch
+        dataset = self.config['source_dataset']
+        model_path = self.cache_dir + '/' + self.config['model'] + '_tuned_' + dataset + '_epoch%d.tar' % epoch
         torch.save(config, model_path)
         self._logger.info("Saved model at {}".format(epoch))
         return model_path
@@ -142,7 +143,8 @@ class TransTrafficStateExecutor(AbstractExecutor):
         Args:
             epoch(int): 轮数
         """
-        model_path = self.cache_dir + '/' + self.config['model'] + '_' + self.config['dataset'] + '_epoch%d.tar' % epoch
+        dataset = self.config['source_dataset']
+        model_path = self.cache_dir + '/' + self.config['model'] + '_' + dataset + '_epoch%d.tar' % epoch
         assert os.path.exists(model_path), 'Weights at epoch %d not found' % epoch
         checkpoint = torch.load(model_path, map_location='cpu')
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -157,7 +159,8 @@ class TransTrafficStateExecutor(AbstractExecutor):
             epoch(int): 轮数
         """
         self.model = self.target_model
-        model_path = self.cache_dir + '/' + self.config['model'] + '_' + self.config['dataset'] + '_epoch%d.tar' % self.best_epoch_idx
+        dataset = self.config['source_dataset']
+        model_path = self.cache_dir + '/' + self.config['model'] + '_' + dataset + '_epoch%d.tar' % self.best_epoch_idx
         assert os.path.exists(model_path), 'Weights at epoch %d not found' % self.best_epoch_idx
         checkpoint = torch.load(model_path, map_location='cpu')
         pretrained_dict = checkpoint['model_state_dict']
@@ -304,7 +307,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
             outputs = {'prediction': y_preds, 'truth': y_truths}
             filename = \
                 time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time())) + '_' \
-                + self.config['model'] + '_' + self.config['dataset'] + '_predictions.npz'
+                + self.config['model'] + '_' +  '_predictions.npz'
             np.savez_compressed(os.path.join(self.evaluate_res_dir, filename), **outputs)
             self.evaluator.clear()
             self.evaluator.collect({'y_true': torch.tensor(y_truths), 'y_pred': torch.tensor(y_preds)})
