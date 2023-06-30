@@ -130,7 +130,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
         config['model_state_dict'] = self.model.state_dict()
         config['optimizer_state_dict'] = self.optimizer.state_dict()
         config['epoch'] = epoch
-        dataset = self.config['source_dataset']
+        dataset = self.config['target_dataset']
         model_path = self.cache_dir + '/' + self.config['model'] + '_tuned_' + dataset + '_epoch%d.tar' % epoch
         torch.save(config, model_path)
         self._logger.info("Saved model at {}".format(epoch))
