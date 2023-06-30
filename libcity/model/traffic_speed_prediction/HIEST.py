@@ -282,6 +282,7 @@ class HIEST(AbstractTrafficStateModel):
         self.afc_mx = torch.from_numpy(self.afc).detach().to(device=self.device)
         self.af = torch.from_numpy(self.adj_mx).detach().to(device=self.device)
         self.adj_mx1 = torch.from_numpy(self.afc.T @ self.adj_mx @ self.afc).detach().to(device=self.device)
+        self.memory_dim = config.get('memory_dim',12)
 
         self.n1 = config.get('n1',1)
         self.n2 = config.get('n2',1)
@@ -331,6 +332,7 @@ class HIEST(AbstractTrafficStateModel):
         self.supports = [torch.tensor(i).to(self.device) for i in self.adj_mx]
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
         self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
+        self.memory_weights = self.construct_memory()
 
 
 
@@ -418,7 +420,7 @@ class HIEST(AbstractTrafficStateModel):
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
                                           ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=self.order))
 
-        self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,
+        self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels+self.memory_dim,
                                     out_channels=self.end_channels,
                                     kernel_size=(1, 1),
                                     bias=True)
@@ -448,33 +450,11 @@ class HIEST(AbstractTrafficStateModel):
         in_len = inputs.size(3)
         if in_len < self.receptive_field:
             x = nn.functional.pad(inputs, (self.receptive_field - in_len, 0, 0, 0))
-            # xc = nn.functional.pad(cinputs, (self.receptive_field - in_len, 0, 0, 0))
-            # xs = nn.functional.pad(sinputs, (self.receptive_field - in_len, 0, 0, 0))
         else:
             x = inputs
-            # xc = cinputs
-            # xs = sinputs
 
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
         skip = 0
-
-        # xc = self.start_conv(xc) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_c = 0
-
-        # xs = self.start_conv(xs) #不应该过conv # (batch_size, residual_channels, num_nodes, self.receptive_field)
-        skip_s = 0
-
-        # calculate the current adaptive adj matrix once per iteration
-        # new_supports = None
-        # if self.gcn_bool and self.addaptadj and self.supports is not None:
-        #     adp = F.softmax(F.relu(torch.mm(self.nodevec1, self.nodevec2)), dim=1)
-        #     new_supports = self.supports + [adp]
-        # learned_acsmx = []
-
-        
-        # self.supports_s = [(acs.clone().detach().t().float() @ i.clone().detach() @ acs.clone().detach().float()).to(self.device) for i in self.supports_c] #self.acs.detach().t().float()
-        # self.supports_s = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_s]
-        # WaveNet layers
 
         for i in range(self.blocks * self.layers):
 
@@ -501,7 +481,6 @@ class HIEST(AbstractTrafficStateModel):
             gate = torch.sigmoid(gate)
             x = filter * gate
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
-            # parametrized skip connection
             # parametrized skip connection
             s = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
@@ -541,6 +520,15 @@ class HIEST(AbstractTrafficStateModel):
         # xc = F.relu(skip_c)
         # xs = F.relu(skip_s)
         # (batch_size, skip_channels, num_nodes, self.output_dim)
+        xm = x.permute(0,3,2,1)
+        # (batch_size, self.output_dim, num_nodes,skip_channels )
+        # xm = torch.reshape(xm,(self.super_nodes,-1))
+        attention_vals = self.attention(xm, self.memory_weights)
+        # attention_vals (batch_size, self.output_dim, num_nodes,super_nodes )
+        attentive_cluster_reps = ((attention_vals@self.memory_weights['M'])@self.memory_weights['fc']).permute(0,3,2,1)
+        # (batch_size, self.output_dim, num_nodes,memory_dim ) .permute(0,3,2,1)
+
+        x = torch.cat((x, attentive_cluster_reps), dim=1)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释
         # xs = F.relu(self.end_conv_1(xs))
@@ -586,6 +574,29 @@ class HIEST(AbstractTrafficStateModel):
         tmpLoss = tmpLoss/(self.super_nodes*(self.super_nodes-1)/2)
 
         return tmpLoss
+    
+    def construct_memory(self):
+        memory = {}
+        # memory_weights['M'] = tf.get_variable('mem', [self.cluster_num, self.memory_dim],
+        #                                       initializer=init, dtype=dtype)
+        # memory_weights['Wa'] = tf.get_variable('att', [self.dim_lstm_hidden, self.memory_dim],
+        #                                        initializer=init, dtype=dtype)
+        # memory_weights['fc'] = tf.get_variable('mem_fc', [self.memory_dim, self.memory_dim],
+        #                                        initializer=init, dtype=dtype)
+        memory['M'] = torch.nn.init.kaiming_uniform_(torch.nn.Parameter(torch.empty((self.super_nodes, self.memory_dim),requires_grad=True).to(device=self.device)))
+        memory['Wa'] = torch.nn.init.kaiming_uniform_(torch.nn.Parameter(torch.empty((self.skip_channels, self.memory_dim),requires_grad=True).to(device=self.device)))
+        memory['fc'] = torch.nn.init.kaiming_uniform_(torch.nn.Parameter(torch.empty((self.memory_dim, self.memory_dim),requires_grad=True).to(device=self.device)))
+        return memory
+    
+    def attention(self, inp, weights):
+        # inp (batch_size, self.output_dim, num_nodes,skip_channels )
+        # print(inp.size())
+        score =torch.einsum('bons,sk,km->bonm', (inp, weights['Wa'],weights['M'].transpose(0,1)))
+        # score = ((inp@ weights['Wa'])@(weights['M']))
+        # score (batch_size, self.output_dim, num_nodes,super_nodes )
+        return F.softmax(score,dim=-1)
+
+
 
     def cal_adj(self, adjtype):
         if adjtype == "scalap":
