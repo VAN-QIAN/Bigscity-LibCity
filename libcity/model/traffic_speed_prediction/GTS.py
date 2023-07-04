@@ -525,7 +525,7 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
             # print(f"aview = {self.adj_mx.view(mid_output.shape[0] * mid_output.shape[1])}")
             true_label = self.adj_mx.view(mid_output.shape[0] * mid_output.shape[1]).to(self.device)
             compute_loss = torch.nn.BCELoss()
-            loss_g = compute_loss(pred, true_label)
+            loss_g = compute_loss(pred, true_label) #Eq.5
             self._logger.debug(f"loss_g = {loss_g}, loss_1 = {loss_1}")
             loss_t = loss_1 + loss_g
             return loss_t
