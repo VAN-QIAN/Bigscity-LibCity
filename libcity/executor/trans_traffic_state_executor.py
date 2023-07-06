@@ -151,6 +151,20 @@ class TransTrafficStateExecutor(AbstractExecutor):
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(epoch))
 
+    def load_model_with_tuned_epoch(self, epoch):
+        """
+        加载某个epoch的模型
+
+        Args:
+            epoch(int): 轮数
+        """
+        dataset = self.config['source_dataset']
+        model_path = self.cache_dir + '/' + self.config['model'] + '_tuned_' + dataset + '_epoch%d.tar' % epoch
+        assert os.path.exists(model_path), 'Weights at epoch %d not found' % epoch
+        checkpoint = torch.load(model_path, map_location='cpu')
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self._logger.info("Loaded model at {}".format(epoch))
     def load_pretrained_model(self):
         """
         加载某个epoch的模型
