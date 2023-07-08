@@ -526,5 +526,5 @@ class TransTrafficStateExecutor(AbstractExecutor):
                               format(len(train_time), sum(train_time) / len(train_time),
                                      sum(eval_time) / len(eval_time)))
         if self.load_best_epoch:
-            self.load_model_with_epoch(best_epoch)
+            self.load_model_with_tuned_epoch(best_epoch)
         return min_val_loss
