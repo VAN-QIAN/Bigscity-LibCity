@@ -38,7 +38,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
         total_num = sum([param.nelement() for param in self.model.parameters()])
         self._logger.info('Total parameter numbers: {}'.format(total_num))
 
-        self.epochs = self.config.get('max_epoch', 100)
+        self.epochs = self.config.get('max_epoch', 200)
         self.train_loss = self.config.get('train_loss', 'none')
         self.learner = self.config.get('learner', 'adam')
         self.learning_rate = self.config.get('learning_rate', 0.01)
@@ -158,13 +158,14 @@ class TransTrafficStateExecutor(AbstractExecutor):
         Args:
             epoch(int): 轮数
         """
-        dataset = self.config['source_dataset']
+        dataset = self.config['target_dataset']
         model_path = self.cache_dir + '/' + self.config['model'] + '_tuned_' + dataset + '_epoch%d.tar' % epoch
         assert os.path.exists(model_path), 'Weights at epoch %d not found' % epoch
         checkpoint = torch.load(model_path, map_location='cpu')
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(epoch))
+
     def load_pretrained_model(self):
         """
         加载某个epoch的模型
@@ -464,6 +465,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
             eval_dataloader(torch.Dataloader): Dataloader
         """
         self._logger.info('Start fine tuning ...')
+        self._logger.info(self.model)
         min_val_loss = float('inf')
         wait = 0
         best_epoch = 0
@@ -472,6 +474,10 @@ class TransTrafficStateExecutor(AbstractExecutor):
         num_batches = len(train_dataloader)
         self._logger.info("num_batches:{}".format(num_batches))
         self.load_pretrained_model()
+        self.optimizer = self._build_optimizer()
+        self.lr_scheduler = self._build_lr_scheduler()
+
+        
 
         for epoch_idx in range(self._tune_epoch_num, self.epochs):
             start_time = time.time()
