@@ -142,7 +142,7 @@ class TransTrafficStateEvaluator(AbstractEvaluator):
         ensure_dir(save_path)
         if filename is None:  # 使用时间戳
             filename = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S') + '_' + \
-                       self.config['model'] + '_' + self.config['dataset']
+                       self.config['model'] + '_' + self.config['source_dataset'] + '_' + self.config['target_dataset']
 
         if 'json' in self.save_modes:
             self._logger.info('Evaluate result is ' + json.dumps(self.result))

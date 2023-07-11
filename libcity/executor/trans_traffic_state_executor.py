@@ -75,7 +75,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
         self._epoch_num = self.config.get('epoch', 0)
         self._tune_epoch_num = self.config.get('epoch', 0)
         if self._epoch_num > 0:
-            self.load_model_with_epoch(self._epoch_num)
+            self.load_model_with_tuned_epoch(self._epoch_num)
         self.loss_func = self._build_train_loss()
 
     def save_model(self, cache_name):
@@ -310,7 +310,7 @@ class TransTrafficStateExecutor(AbstractExecutor):
             y_preds = []
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
-                output = self.model.predict(batch)
+                output,coutput,soutput = self.model.predict(batch)
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
                 y_truths.append(y_true.cpu().numpy())

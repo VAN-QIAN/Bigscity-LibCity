@@ -667,7 +667,7 @@ class HIEST(AbstractTrafficStateModel):
         # train_loss = loss_f + loss_c + loss_s
         # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
-        self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
+        # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         # self._logger.info('fine_loss: {0} coarse_loss:{1} bce_loss:{2}'.format(loss_f,loss_c,loss_bce))
         return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
 

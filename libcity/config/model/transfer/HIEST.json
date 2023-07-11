@@ -21,12 +21,12 @@
     "ext_scaler": "none",
     "add_time_in_day": true,
     "add_day_in_week": false,
-    "max_epoch": 100,
+    "max_epoch": 300,
     "learner": "adam",
     "learning_rate": 0.001,
     "lr_decay": false,
     "clip_grad_norm": true,
     "max_grad_norm": 5,
-    "use_early_stop": false
+    "use_early_stop": true
   }
   
