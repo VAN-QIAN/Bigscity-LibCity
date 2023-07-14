@@ -315,7 +315,7 @@ class DecoderModel(nn.Module, Seq2SeqAttrs):
 
 
 class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
-    def __init__(self, config, data_feature):
+    def __init__(self, config, data_feature,source):
         """
         构造模型
         :param config: 源于各种配置的配置字典
@@ -325,7 +325,7 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
         super().__init__(config, data_feature)
         self.config = config
         self.device = config.get('device', torch.device('cpu'))
-        self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)
+        # self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)
         Seq2SeqAttrs.__init__(self, self.config, data_feature)
 
         self.seq_len = int(config.get('input_window', 1))  # for the encoder
@@ -336,14 +336,23 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
         self._logger = getLogger()
 
         # 此处 adj_mx 作用是在训练自动图结构推断时起到参考作用
-        self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)
+        # self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)
         # print(f"ADJMX={self.adj_mx}")
         self.cl_decay_steps = config.get('cl_decay_steps', 1000)
         self.use_curriculum_learning = config.get('use_curriculum_learning', True)
         self.temperature = config.get('temperature', 0.5)
         self.epoch_use_regularization = config.get('epoch_use_regularization', 50)
 
-        self.num_nodes = self.data_feature.get('num_nodes', 1)
+        
+        if source == True:
+            self.adj_mx = torch.Tensor(data_feature.get('source_adj_mx')).to(self.device)
+            # self.afc = data_feature.get('source_afc_mx')
+            self.num_nodes = data_feature.get('source_num_nodes', 1)
+        else:
+            self.adj_mx = torch.Tensor(data_feature.get('target_adj_mx')).to(self.device)
+            # self.afc = data_feature.get('target_afc_mx')
+            self.num_nodes = data_feature.get('target_num_nodes', 1)
+
         self.num_batches = self.data_feature.get('num_batches', 1)
         self._scaler = self.data_feature.get('scaler')
         self.feature_dim = self.data_feature.get('feature_dim', 1)

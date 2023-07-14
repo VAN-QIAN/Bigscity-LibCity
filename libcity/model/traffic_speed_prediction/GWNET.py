@@ -101,10 +101,15 @@ class GCN(nn.Module):
 
 
 class GWNET(AbstractTrafficStateModel):
-    def __init__(self, config, data_feature):
-        self.adj_mx = data_feature.get('adj_mx')
-        self.num_nodes = data_feature.get('num_nodes', 1)
-        self.feature_dim = data_feature.get('feature_dim', 2)
+    def __init__(self, config, data_feature,source):
+        if source == True:
+            self.adj_mx = data_feature.get('source_adj_mx')
+            # self.afc = data_feature.get('source_afc_mx')
+            self.num_nodes = data_feature.get('source_num_nodes', 1)
+        else:
+            self.adj_mx = data_feature.get('target_adj_mx')
+            # self.afc = data_feature.get('target_afc_mx')
+            self.num_nodes = data_feature.get('target_num_nodes', 1)
         super().__init__(config, data_feature)
 
         self.dropout = config.get('dropout', 0.3)
@@ -125,6 +130,7 @@ class GWNET(AbstractTrafficStateModel):
         self.output_window = config.get('output_window', 1)
         self.output_dim = self.data_feature.get('output_dim', 1)
         self.device = config.get('device', torch.device('cpu'))
+        self.feature_dim = data_feature.get('feature_dim', 1)
 
         self.apt_layer = config.get('apt_layer', True)
         if self.apt_layer:

@@ -241,7 +241,7 @@ class HGCN(nn.Module):
         return hf,hc,hs#,ac_hat#,as_hat
 
 
-class HIEST(AbstractTrafficStateModel):
+class HIESTBase(AbstractTrafficStateModel):
     def __init__(self, config, data_feature,source):
         if source == True:
             self.adj_mx = data_feature.get('source_adj_mx')
@@ -332,7 +332,7 @@ class HIEST(AbstractTrafficStateModel):
         self.supports = [torch.tensor(i).to(self.device) for i in self.adj_mx]
         self.supports_c = [(self.afc_mx.t().float() @ i.clone().detach() @ self.afc_mx.float()).to(self.device) for i in self.supports]
         self.supports_c = [F.softmax(i,dim=-1).to(self.device) for i in self.supports_c]
-        self.memory_weights = self.construct_memory()
+        # self.memory_weights = self.construct_memory()
 
 
 
@@ -420,7 +420,7 @@ class HIEST(AbstractTrafficStateModel):
                     self.gconv.append(HGCN(self.dilation_channels, self.residual_channels,self.dropout,self.afc_mx,self.super_nodes,self.coarse_nodes,device=self.device
                                           ,n1=self.n1,n2=self.n2,n3=self.n3,n4=self.n4,n5=self.n5 ,support_len=self.supports_len,order=self.order))
 
-        self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels+self.memory_dim,
+        self.end_conv_1 = nn.Conv2d(in_channels=self.skip_channels,#+self.memory_dim,
                                     out_channels=self.end_channels,
                                     kernel_size=(1, 1),
                                     bias=True)
@@ -523,12 +523,12 @@ class HIEST(AbstractTrafficStateModel):
         xm = x.permute(0,3,2,1)
         # (batch_size, self.output_dim, num_nodes,skip_channels )
         # xm = torch.reshape(xm,(self.super_nodes,-1))
-        attention_vals = self.attention(xm, self.memory_weights)
+        # attention_vals = self.attention(xm, self.memory_weights)
         # attention_vals (batch_size, self.output_dim, num_nodes,super_nodes )
-        attentive_cluster_reps = ((attention_vals@self.memory_weights['M'])@self.memory_weights['fc']).permute(0,3,2,1)
+        # attentive_cluster_reps = ((attention_vals@self.memory_weights['M'])@self.memory_weights['fc']).permute(0,3,2,1)
         # (batch_size, self.output_dim, num_nodes,memory_dim ) .permute(0,3,2,1)
 
-        x = torch.cat((x, attentive_cluster_reps), dim=1)
+        # x = torch.cat((x, attentive_cluster_reps), dim=1)
         x = F.relu(self.end_conv_1(x))
         # xc = F.relu(self.end_conv_1(xc)) #要注释
         # xs = F.relu(self.end_conv_1(xs))

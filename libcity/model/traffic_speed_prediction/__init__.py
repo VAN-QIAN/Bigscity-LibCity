@@ -18,6 +18,7 @@ from libcity.model.traffic_speed_prediction.DKFN import DKFN
 from libcity.model.traffic_speed_prediction.STTN import STTN
 from libcity.model.traffic_speed_prediction.FNN import FNN
 from libcity.model.traffic_speed_prediction.HIEST import HIEST
+from libcity.model.traffic_speed_prediction.HIESTBase import HIESTBase
 
 __all__ = [
     "DCRNN",
@@ -39,5 +40,6 @@ __all__ = [
     "DKFN",
     "STTN",
     "FNN",
-    "HIEST"
+    "HIEST",
+    "HIESTBase"
 ]

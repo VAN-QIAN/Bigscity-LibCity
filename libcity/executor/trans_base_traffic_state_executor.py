@@ -179,7 +179,10 @@ class TransBaseTrafficStateExecutor(AbstractExecutor):
         assert os.path.exists(model_path), 'Weights at epoch %d not found' % self.best_epoch_idx
         checkpoint = torch.load(model_path, map_location='cpu')
         pretrained_dict = checkpoint['model_state_dict']
-        del pretrained_dict['acs']
+        # del pretrained_dict['acs']
+        if self.config['model'] == "GWNET":
+            del pretrained_dict['nodevec1']
+            del pretrained_dict['nodevec2']
         self.model.load_state_dict(pretrained_dict, strict=False)
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(self.best_epoch_idx))
