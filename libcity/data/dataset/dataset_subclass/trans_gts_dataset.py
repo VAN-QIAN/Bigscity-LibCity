@@ -32,8 +32,16 @@ class TransGTSDataset(TransTrafficStatePointDataset):
         train_datas = [data_tuple[0] for data_tuple in datas]
         # (num_samples, input_window, num_nodes(...), feature_dim)
         train_data = np.array(train_datas)[:, 0, ..., 0]  # (num_samples, num_nodes)
+
+        tdatas = self.train_dataloader.dataset  # list of tuple
+        # tuple[0] : shape = (input_window, num_nodes(...), feature_dim)
+        # tuple[1] : shape = (output_window, num_nodes(...), feature_dim)
+        train_datas_t = [data_tuple[0] for data_tuple in tdatas]
+        # (num_samples, input_window, num_nodes(...), feature_dim)
+        train_data_t = np.array(train_datas_t)[:, 0, ..., 0]  # (num_samples, num_nodes)
         return {"scaler": self.scaler, "source_adj_mx": self.source_adj_mx, "ext_dim": self.ext_dim,
                 "source_num_nodes": self.source_num_nodes, "feature_dim": self.feature_dim,
                 "output_dim": self.output_dim, "source_num_batches": self.num_batches,"source_afc_mx":self.source_afc_mx,
-                "target_num_batches": self.num_batches_t,"target_adj_mx":self.target_adj_mx,"target_num_nodes":self.target_num_nodes,"target_afc_mx":self.target_afc_mx, "train_data": train_data,
+                "target_num_batches": self.num_batches_t,"target_adj_mx":self.target_adj_mx,"target_num_nodes":self.target_num_nodes,"target_afc_mx":self.target_afc_mx, 
+                "train_data": train_data,"train_data_t": train_data_t,
                 "num_batches": self.num_batches}
