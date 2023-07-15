@@ -134,6 +134,7 @@ class TransDCRNNExecutor(TransBaseTrafficStateExecutor):
                               'average eval time is {:.3f}s'.
                               format(len(train_time), sum(train_time) / len(train_time),
                                      sum(eval_time) / len(eval_time)))
+        self.best_epoch_idx = best_epoch
         if self.load_best_epoch:
             self.load_model_with_epoch(best_epoch)
         return min_val_loss
@@ -212,6 +213,7 @@ class TransDCRNNExecutor(TransBaseTrafficStateExecutor):
         eval_time = []
         num_batches = len(train_dataloader)
         self._logger.info("num_batches:{}".format(num_batches))
+        batches_seen = num_batches * self._epoch_num
         self.load_pretrained_model()
         self.optimizer = self._build_optimizer()
         self.lr_scheduler = self._build_lr_scheduler()
