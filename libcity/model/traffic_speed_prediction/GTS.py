@@ -94,12 +94,12 @@ class GCONV(nn.Module):
             pass
         else:
             # T1=L x1=T1*x=L*x
-            x1 = torch.sparse.mm(adj_mx, x0)  # supports: n*n; x0: n*(total_arg_size * batch_size)
+            x1 = torch.mm(adj_mx, x0)  # supports: n*n; x0: n*(total_arg_size * batch_size)
             x = self._concat(x, x1)  # (2, num_nodes, total_arg_size * batch_size)
             for k in range(2, self._max_diffusion_step + 1):
                 # T2=2LT1-T0=2L^2-1 x2=T2*x=2L^2x-x=2L*x1-x0...
                 # T3=2LT2-T1=2L(2L^2-1)-L x3=2L*x2-x1...
-                x2 = 2 * torch.sparse.mm(adj_mx, x1) - x0
+                x2 = 2 * torch.mm(adj_mx, x1) - x0
                 x = self._concat(x, x2)  # (3, num_nodes, total_arg_size * batch_size)
                 x1, x0 = x2, x1  # 循环
         # x.shape (Ks, num_nodes, total_arg_size * batch_size)
