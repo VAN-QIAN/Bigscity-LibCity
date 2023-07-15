@@ -227,13 +227,8 @@ class Seq2SeqAttrs:
         self.cl_decay_steps = int(config.get('cl_decay_steps', 1000))
         self.filter_type = config.get('filter_type', 'laplacian')
         if source == True:
-            # self.adj_mx = torch.Tensor(data_feature.get('source_adj_mx')).to(self.device)
-            # self.afc = data_feature.get('source_afc_mx')
             self.num_nodes = data_feature.get('source_num_nodes', 1)
-            train_feas = self.data_feature.get('train_data')  # (num_samples, num_nodes)
         else:
-            # self.adj_mx = torch.Tensor(data_feature.get('target_adj_mx')).to(self.device)
-            # self.afc = data_feature.get('target_afc_mx')
             self.num_nodes = data_feature.get('target_num_nodes', 1)
         # print(f"num nodes is {self.num_nodes}")
         self.num_rnn_layers = int(config.get('num_rnn_layers', 1))
