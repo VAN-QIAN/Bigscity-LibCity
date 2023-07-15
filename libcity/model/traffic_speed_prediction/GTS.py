@@ -244,9 +244,9 @@ class Seq2SeqAttrs:
 
 
 class EncoderModel(nn.Module, Seq2SeqAttrs):
-    def __init__(self, config, data_feature, device):
+    def __init__(self, config, data_feature, device,source):
         nn.Module.__init__(self)
-        Seq2SeqAttrs.__init__(self, config, data_feature)
+        Seq2SeqAttrs.__init__(self, config, data_feature,source)
         self.device = device
         self.seq_len = int(config.get('input_window', 1))  # for the encoder
         self.dcgru_layers = nn.ModuleList()
@@ -283,9 +283,9 @@ class EncoderModel(nn.Module, Seq2SeqAttrs):
 
 
 class DecoderModel(nn.Module, Seq2SeqAttrs):
-    def __init__(self, config, data_feature, device):
+    def __init__(self, config, data_feature, device,source):
         nn.Module.__init__(self)
-        Seq2SeqAttrs.__init__(self, config, data_feature)
+        Seq2SeqAttrs.__init__(self, config, data_feature,source)
         self.device = device
         self.output_dim = config.get('output_dim', 1)
         self.horizon = int(config.get('output_window', 1))
@@ -339,8 +339,8 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
         self.seq_len = int(config.get('input_window', 1))  # for the encoder
         self.horizon = int(config.get('output_window', 1))  # for the decoder
 
-        self.encoder_model = EncoderModel(self.config, data_feature, self.device)
-        self.decoder_model = DecoderModel(self.config, data_feature, self.device)
+        self.encoder_model = EncoderModel(self.config, data_feature, self.device,source)
+        self.decoder_model = DecoderModel(self.config, data_feature, self.device,source)
         self._logger = getLogger()
         self._logger.info('data_feature' + str(data_feature))
 
