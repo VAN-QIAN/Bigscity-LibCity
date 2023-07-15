@@ -353,11 +353,13 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
             # self.afc = data_feature.get('source_afc_mx')
             self.num_nodes = data_feature.get('source_num_nodes', 1)
             train_feas = self.data_feature.get('train_data')  # (num_samples, num_nodes)
+            self._logger.info('data_feature ' + str(len(train_feas)))
         else:
             self.adj_mx = torch.Tensor(data_feature.get('target_adj_mx')).to(self.device)
             # self.afc = data_feature.get('target_afc_mx')
             self.num_nodes = data_feature.get('target_num_nodes', 1)
             train_feas = self.data_feature.get('train_data_t')  # (num_samples, num_nodes)
+            self._logger.info('data_feature ' + str(len(train_feas)))
 
         self.num_batches = self.data_feature.get('num_batches', 1)
         self._scaler = self.data_feature.get('scaler')

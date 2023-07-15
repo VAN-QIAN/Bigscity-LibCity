@@ -183,6 +183,8 @@ class TransBaseTrafficStateExecutor(AbstractExecutor):
         if self.config['model'] == "GWNET":
             del pretrained_dict['nodevec1']
             del pretrained_dict['nodevec2']
+        if self.config['model'] == "GTS":
+            del pretrained_dict['fc.weight']
         self.model.load_state_dict(pretrained_dict, strict=False)
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(self.best_epoch_idx))

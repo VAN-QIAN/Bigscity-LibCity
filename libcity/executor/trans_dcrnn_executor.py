@@ -81,6 +81,7 @@ class TransDCRNNExecutor(TransBaseTrafficStateExecutor):
         self._logger.info("num_batches:{}".format(num_batches))
 
         batches_seen = num_batches * self._epoch_num
+        self._logger.info("batches_seen: {}".format(batches_seen))
         for epoch_idx in range(self._epoch_num, self.epochs):
             start_time = time.time()
             losses, batches_seen = self._train_epoch(train_dataloader, epoch_idx, batches_seen, self.loss_func)
@@ -213,7 +214,8 @@ class TransDCRNNExecutor(TransBaseTrafficStateExecutor):
         eval_time = []
         num_batches = len(train_dataloader)
         self._logger.info("num_batches:{}".format(num_batches))
-        batches_seen = num_batches * self._epoch_num
+        batches_seen = num_batches * self._tune_epoch_num
+        self._logger.info("batches_seen: {}".format(batches_seen))
         self.load_pretrained_model()
         self.optimizer = self._build_optimizer()
         self.lr_scheduler = self._build_lr_scheduler()
@@ -230,7 +232,7 @@ class TransDCRNNExecutor(TransBaseTrafficStateExecutor):
 
             self._logger.info("evaluating now!")
             t2 = time.time()
-            val_loss = self._valid_epoch(eval_dataloader, epoch_idx, self.loss_func)
+            val_loss = self._valid_epoch(eval_dataloader, epoch_idx, batches_seen, self.loss_func)
             end_time = time.time()
             eval_time.append(end_time - t2)
 

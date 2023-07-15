@@ -33,7 +33,7 @@ class TransGTSDataset(TransTrafficStatePointDataset):
         # (num_samples, input_window, num_nodes(...), feature_dim)
         train_data = np.array(train_datas)[:, 0, ..., 0]  # (num_samples, num_nodes)
 
-        tdatas = self.train_dataloader.dataset  # list of tuple
+        tdatas = self.train_dataloader_t.dataset  # list of tuple
         # tuple[0] : shape = (input_window, num_nodes(...), feature_dim)
         # tuple[1] : shape = (output_window, num_nodes(...), feature_dim)
         train_datas_t = [data_tuple[0] for data_tuple in tdatas]
