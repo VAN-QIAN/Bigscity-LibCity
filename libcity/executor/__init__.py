@@ -13,11 +13,13 @@ from libcity.executor.eta_executor import ETAExecutor
 from libcity.executor.gensim_executor import GensimExecutor
 from libcity.executor.trans_traffic_state_executor import TransTrafficStateExecutor
 from libcity.executor.trans_base_traffic_state_executor import TransBaseTrafficStateExecutor
+from libcity.executor.trans_dcrnn_executor import TransDCRNNExecutor
 
 __all__ = [
     "TrajLocPredExecutor",
     "TrafficStateExecutor",
     "DCRNNExecutor",
+    "TransDCRNNExecutor",
     "MTGNNExecutor",
     "HyperTuning",
     "GeoSANExecutor",

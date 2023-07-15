@@ -17,6 +17,8 @@
         "GTS": {
             "source_dataset_class": "TransTrafficStatePointDataset",
             "target_dataset_class": "TransTrafficStatePointDataset",
+            "dataset_class": "TransGTSDataset",
+            "//executor": "TransDCRNNExecutor",
             "executor": "TransBaseTrafficStateExecutor",
             "evaluator": "TransTrafficStateEvaluator"
         },
