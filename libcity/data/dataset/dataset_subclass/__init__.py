@@ -5,6 +5,7 @@ from libcity.data.dataset.dataset_subclass.stresnet_dataset import STResNetDatas
 from libcity.data.dataset.dataset_subclass.stg2seq_dataset import STG2SeqDataset
 from libcity.data.dataset.dataset_subclass.gman_dataset import GMANDataset
 from libcity.data.dataset.dataset_subclass.gts_dataset import GTSDataset
+from libcity.data.dataset.dataset_subclass.trans_gts_dataset import TransGTSDataset
 from libcity.data.dataset.dataset_subclass.staggcn_dataset import STAGGCNDataset
 from libcity.data.dataset.dataset_subclass.dmvstnet_dataset import DMVSTNetDataset
 from libcity.data.dataset.dataset_subclass.pbs_trajectory_dataset import PBSTrajectoryDataset
@@ -30,6 +31,7 @@ __all__ = [
     "PBSTrajectoryDataset",
     "GMANDataset",
     "GTSDataset",
+    "TransGTSDataset",
     "STDNDataset",
     "HGCNDataset",
     "STAGGCNDataset",
