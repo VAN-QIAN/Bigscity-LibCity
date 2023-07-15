@@ -222,11 +222,19 @@ class DCGRUCell(nn.Module):
 
 
 class Seq2SeqAttrs:
-    def __init__(self, config, data_feature):
+    def __init__(self, config, data_feature,source):
         self.max_diffusion_step = int(config.get('max_diffusion_step', 2))
         self.cl_decay_steps = int(config.get('cl_decay_steps', 1000))
         self.filter_type = config.get('filter_type', 'laplacian')
-        self.num_nodes = int(data_feature.get('num_nodes', 1))
+        if source == True:
+            # self.adj_mx = torch.Tensor(data_feature.get('source_adj_mx')).to(self.device)
+            # self.afc = data_feature.get('source_afc_mx')
+            self.num_nodes = data_feature.get('source_num_nodes', 1)
+            train_feas = self.data_feature.get('train_data')  # (num_samples, num_nodes)
+        else:
+            # self.adj_mx = torch.Tensor(data_feature.get('target_adj_mx')).to(self.device)
+            # self.afc = data_feature.get('target_afc_mx')
+            self.num_nodes = data_feature.get('target_num_nodes', 1)
         # print(f"num nodes is {self.num_nodes}")
         self.num_rnn_layers = int(config.get('num_rnn_layers', 1))
         self.rnn_units = int(config.get('rnn_units'))
@@ -326,7 +334,7 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
         self.config = config
         self.device = config.get('device', torch.device('cpu'))
         # self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)
-        Seq2SeqAttrs.__init__(self, self.config, data_feature)
+        Seq2SeqAttrs.__init__(self, self.config, data_feature,source)
 
         self.seq_len = int(config.get('input_window', 1))  # for the encoder
         self.horizon = int(config.get('output_window', 1))  # for the decoder
