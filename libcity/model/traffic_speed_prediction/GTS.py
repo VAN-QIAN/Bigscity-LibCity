@@ -334,6 +334,7 @@ class GTS(AbstractTrafficStateModel, Seq2SeqAttrs):
         self.encoder_model = EncoderModel(self.config, data_feature, self.device)
         self.decoder_model = DecoderModel(self.config, data_feature, self.device)
         self._logger = getLogger()
+        self._logger.info('data_feature' + str(data_feature))
 
         # 此处 adj_mx 作用是在训练自动图结构推断时起到参考作用
         # self.adj_mx = torch.Tensor(data_feature.get('adj_mx')).to(self.device)

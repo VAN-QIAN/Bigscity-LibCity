@@ -19,7 +19,7 @@ def get_dataset(config):
     """
     try:
         return getattr(importlib.import_module('libcity.data.dataset'),
-                       'TransTrafficStatePointDataset')(config)
+                       config['source_dataset_class'])(config)
     except AttributeError:
         try:
             return getattr(importlib.import_module('libcity.data.dataset.dataset_subclass'),
