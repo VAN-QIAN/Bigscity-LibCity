@@ -1,6 +1,6 @@
 {   
     "transfer":{
-        "allowed_model": ["HIEST","HIESTBase","GTS","GWNET"],
+        "allowed_model": ["HIEST","HIESTBase","GTS","GWNET","HIESTDistill"],
         "allowed_dataset": ["METR_LA", "PEMS_BAY", "PEMSD3", "PEMSD4", "PEMSD7", "PEMSD8","PEMSD7(M)"],
         "HIEST": {
             "source_dataset_class": "TransTrafficStatePointDataset",
@@ -9,6 +9,12 @@
             "evaluator": "TransTrafficStateEvaluator"
         },
         "HIESTBase": {
+            "source_dataset_class": "TransTrafficStatePointDataset",
+            "target_dataset_class": "TransTrafficStatePointDataset",
+            "executor": "TransTrafficStateExecutor",
+            "evaluator": "TransTrafficStateEvaluator"
+        },
+        "HIESTDistill": {
             "source_dataset_class": "TransTrafficStatePointDataset",
             "target_dataset_class": "TransTrafficStatePointDataset",
             "executor": "TransTrafficStateExecutor",

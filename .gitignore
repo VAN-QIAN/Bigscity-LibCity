@@ -12,6 +12,6 @@
 /libcity/data/dataset/*/__pycache__
 .DS_store
 /test
-*.json
+/*.json
 *.slurm
 *.csv

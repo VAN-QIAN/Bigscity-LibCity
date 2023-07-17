@@ -14,6 +14,7 @@ from libcity.executor.gensim_executor import GensimExecutor
 from libcity.executor.trans_traffic_state_executor import TransTrafficStateExecutor
 from libcity.executor.trans_base_traffic_state_executor import TransBaseTrafficStateExecutor
 from libcity.executor.trans_dcrnn_executor import TransDCRNNExecutor
+from libcity.executor.distill_executor import DistillTrafficStateExecutor
 
 __all__ = [
     "TrajLocPredExecutor",
@@ -31,5 +32,6 @@ __all__ = [
     "ETAExecutor",
     "GensimExecutor",
     "TransTrafficStateExecutor",
-    "TransBaseTrafficStateExecutor"
+    "TransBaseTrafficStateExecutor",
+    "DistillTrafficStateExecutor"
 ]

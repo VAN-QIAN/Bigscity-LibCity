@@ -183,6 +183,7 @@ class TransConfigParser(object):
         # 目前暂定这三个参数必须由用户指定
         self.config['task'] = task
         self.config['model'] = model
+        self.config['target_model'] = 'HIESTDistill'
         self.config['source_dataset'] = source_dataset
         self.config['target_dataset'] = target_dataset
         self.config['saved_model'] = saved_model

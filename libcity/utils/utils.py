@@ -45,8 +45,12 @@ def get_model(config, data_feature ,source):
             raise AttributeError('model is not found')
     elif config['task'] == 'traffic_state_pred' or  config['task'] == 'transfer':
         try:
-            return getattr(importlib.import_module('libcity.model.traffic_flow_prediction'),
-                           config['model'])(config, data_feature, source)
+            if source == True:
+                return getattr(importlib.import_module('libcity.model.traffic_flow_prediction'),
+                            config['model'])(config, data_feature, source)
+            else:
+                return getattr(importlib.import_module('libcity.model.traffic_flow_prediction'),
+                            config['target_model'])(config, data_feature, source)
         except AttributeError:
             try:
                 return getattr(importlib.import_module('libcity.model.traffic_speed_prediction'),

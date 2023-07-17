@@ -19,6 +19,7 @@ from libcity.model.traffic_speed_prediction.STTN import STTN
 from libcity.model.traffic_speed_prediction.FNN import FNN
 from libcity.model.traffic_speed_prediction.HIEST import HIEST
 from libcity.model.traffic_speed_prediction.HIESTBase import HIESTBase
+from libcity.model.traffic_speed_prediction.HIESTDistill import HIESTDistill
 
 __all__ = [
     "DCRNN",
