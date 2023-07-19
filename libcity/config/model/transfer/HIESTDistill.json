@@ -15,7 +15,7 @@
     "dilation_channels": 32,
     "skip_channels": 256,
     "end_channels": 512,
-    "scaler": "standard",
+    "scaler": "minmax11",
     "load_external": true,
     "normal_external": false,
     "ext_scaler": "none",

@@ -53,8 +53,12 @@ def get_model(config, data_feature ,source):
                             config['target_model'])(config, data_feature, source)
         except AttributeError:
             try:
-                return getattr(importlib.import_module('libcity.model.traffic_speed_prediction'),
-                               config['model'])(config, data_feature, source)
+                if source == True:
+                    return getattr(importlib.import_module('libcity.model.traffic_speed_prediction'),
+                            config['model'])(config, data_feature, source)
+                else:
+                    return getattr(importlib.import_module('libcity.model.traffic_speed_prediction'),
+                            config['target_model'])(config, data_feature, source)
             except AttributeError:
                 try:
                     return getattr(importlib.import_module('libcity.model.traffic_demand_prediction'),

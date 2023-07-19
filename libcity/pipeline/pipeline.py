@@ -218,6 +218,7 @@ def distill(task=None, model_name=None, source_dataset_name=None,target_dataset_
         exp_id, model_name, source_dataset_name)
     model = get_model(config, data_feature , source=True)
     target_model = get_model(config, data_feature, source=False)#在Source pretrain和在target fine-tune
+    logger.info('target model{}'.format(str(target_model)))
     executor = get_executor(config, model, target_model,data_feature)
     # 训练
     if train or not os.path.exists(model_cache_file):

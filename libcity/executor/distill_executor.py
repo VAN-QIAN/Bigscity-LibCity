@@ -188,7 +188,7 @@ class DistillTrafficStateExecutor(AbstractExecutor):
         checkpoint = torch.load(model_path, map_location='cpu')
         pretrained_dict = checkpoint['model_state_dict']
         del pretrained_dict['acs']
-        
+        self.model.load_state_dict(pretrained_dict, strict=False)
         # Student
         student_dict = OrderedDict()
         for k,v in pretrained_dict.items():
@@ -332,7 +332,7 @@ class DistillTrafficStateExecutor(AbstractExecutor):
             y_preds = []
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
-                output,coutput,soutput = self.model.predict(batch)
+                output,coutput,soutput,sg,sr = self.model.predict(batch)
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
                 y_truths.append(y_true.cpu().numpy())
@@ -486,16 +486,17 @@ class DistillTrafficStateExecutor(AbstractExecutor):
             train_dataloader(torch.Dataloader): Dataloader
             eval_dataloader(torch.Dataloader): Dataloader
         """
-        self._logger.info('Start fine tuning ...')
-        self._logger.info(self.model)
+        
         min_val_loss = float('inf')
         wait = 0
         best_epoch = 0
         train_time = []
         eval_time = []
         num_batches = len(train_dataloader)
+        self._logger.info('Start fine tuning ...')
         self._logger.info("num_batches:{}".format(num_batches))
         self.load_pretrained_model()
+        self._logger.info(self.model)
         self.optimizer = self._build_optimizer()
         self.lr_scheduler = self._build_lr_scheduler()
 

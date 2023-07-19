@@ -11,7 +11,7 @@
         "HIESTBase": {
             "source_dataset_class": "TransTrafficStatePointDataset",
             "target_dataset_class": "TransTrafficStatePointDataset",
-            "executor": "TransTrafficStateExecutor",
+            "executor": "DistillTrafficStateExecutor",
             "evaluator": "TransTrafficStateEvaluator"
         },
         "HIESTDistill": {

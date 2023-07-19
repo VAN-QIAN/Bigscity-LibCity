@@ -282,6 +282,24 @@ class HIESTBase(AbstractTrafficStateModel):
         self.receptive_field = receptive_field
         self._logger.info('receptive_field: ' + str(self.receptive_field))
 
+    def cal_adj(self, adjtype):
+        if adjtype == "scalap":
+            self.adj_mx = [calculate_scaled_laplacian(self.adj_mx)]
+        elif adjtype == "normlap":
+            self.adj_mx = [calculate_normalized_laplacian(self.adj_mx).astype(np.float32).todense()]
+        elif adjtype == "symnadj":
+            self.adj_mx = [sym_adj(self.adj_mx)]
+        elif adjtype == "transition":
+            self.adj_mx = [asym_adj(self.adj_mx)]
+        elif adjtype == "doubletransition":
+            self.adj_mx = [asym_adj(self.adj_mx), asym_adj(np.transpose(self.adj_mx))]
+        elif adjtype == "identity":
+            self.adj_mx = [np.diag(np.ones(self.adj_mx.shape[0])).astype(np.float32)]
+        else:
+            assert 0, "adj type not defined"
+
+        
+
 
 class HIESTDistill(HIESTBase):
     def __init__(self, config, data_feature,source):
@@ -289,6 +307,7 @@ class HIESTDistill(HIESTBase):
             super().__init__(config, data_feature,source=False)
             self.teacher = HIESTBase(config, data_feature,source=False)
             self.student = HIESTBase(config, data_feature,source=False)
+
 
     def forward(self, batch):
         inputs = batch['X']  # (batch_size, input_window, num_nodes, feature_dim)
@@ -303,9 +322,13 @@ class HIESTDistill(HIESTBase):
             x = inputs
 
         x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        tx = x
         skip = 0
+        t_skip = 0
         stu_skip_r = 0
         stu_skip_g = 0
+        tea_skip_r = 0
+        tea_skip_g = 0
 
         for i in range(self.blocks * self.layers):
 
@@ -358,11 +381,17 @@ class HIESTDistill(HIESTBase):
 
             # Student
             x,sxr,sxg = self.student.gconv[i](x,self.supports,self.supports_c,acs)
+            s_xr = self.skip_convs[i](sxr)
+            s_xg = self.skip_convs[i](sxg)
+            # print('x.size()')
+            # print(x.size())
+            # print(sxr.size())
+            # print(sxg.size())
 
             try:
                 skip = skip[:, :, :, -s.size(3):]
-                stu_skip_r = stu_skip_r[:, :, :, -sxr.size(3):]
-                stu_skip_g = stu_skip_g[:, :, :, -sxg.size(3):]
+                stu_skip_r = stu_skip_r[:, :, :, -s_xr.size(3):]
+                stu_skip_g = stu_skip_g[:, :, :, -s_xg.size(3):]
                 
             except(Exception):
                 skip = 0
@@ -370,25 +399,40 @@ class HIESTDistill(HIESTBase):
                 stu_skip_g = 0
 
             skip = s + skip
-            stu_skip_r = sxr + stu_skip_r
-            stu_skip_g = sxg + stu_skip_g
+            # print('skip')
+            # print(skip.size())
+
+            stu_skip_r = s_xr + stu_skip_r
+
+            # print('stu_skip_r')
+            # print(stu_skip_r.size())
+            stu_skip_g = s_xg + stu_skip_g
             
             x = x + residual[:, :, :, -x.size(3):]
+            # print('before bc')
+            # print(x.size())
             x = self.bn[i](x)
+            # print('after bc')
+            # print(x.size())
             # sxr = self.bn[i](sxr)
-            sxr = self.bnc[i](sxr)
+            # print('before bnc')
+            # print(sxr.size())
+            sxr = self.bnc[i](sxr) #student.
             sxg = self.bns[i](sxg)
 
             # Teacher
             tx,txr,txg = self.student.gconv[i](tx,self.supports,self.supports_c,acs)
+            t_xr = self.skip_convs[i](txr)
+            t_xg = self.skip_convs[i](txg)
+            
 
             try:
                 t_skip = t_skip[:, :, :, -t_s.size(3):]
-                tea_skip_r = tea_skip_r[:, :, :, -txr.size(3):]
-                tea_skip_g = tea_skip_g[:, :, :, -txr.size(3):]
+                tea_skip_r = tea_skip_r[:, :, :, -t_xr.size(3):]
+                tea_skip_g = tea_skip_g[:, :, :, -t_xg.size(3):]
                 
             except(Exception):
-                skip = 0
+                t_skip = 0
                 tea_skip_r = 0
                 tea_skip_g = 0
 
@@ -396,14 +440,19 @@ class HIESTDistill(HIESTBase):
             tea_skip_r = txr + tea_skip_r
             tea_skip_g = txg + tea_skip_g
             
-            tx = tx + t_residual[:, :, :, -t_x.size(3):]
-            t_x = self.bn[i](t_x)
+            tx = tx + t_residual[:, :, :, -tx.size(3):]
+            tx = self.bn[i](tx) #teacher.
             # sxr = self.bn[i](sxr)
             txr = self.bnc[i](txr)
             txg = self.bns[i](txg)
 
         x = F.relu(skip)
+        # print(x.size())
+        # print('t_skip')
+        # print(t_skip.size())
         tx = F.relu(t_skip)
+        # print('stu_skip_r')
+        # print(stu_skip_r.size())
         sxr = F.relu(stu_skip_r)
         txr = F.relu(tea_skip_r)
         fc = sxr
@@ -492,21 +541,7 @@ class HIESTDistill(HIESTBase):
 
 
 
-    def cal_adj(self, adjtype):
-        if adjtype == "scalap":
-            self.adj_mx = [calculate_scaled_laplacian(self.adj_mx)]
-        elif adjtype == "normlap":
-            self.adj_mx = [calculate_normalized_laplacian(self.adj_mx).astype(np.float32).todense()]
-        elif adjtype == "symnadj":
-            self.adj_mx = [sym_adj(self.adj_mx)]
-        elif adjtype == "transition":
-            self.adj_mx = [asym_adj(self.adj_mx)]
-        elif adjtype == "doubletransition":
-            self.adj_mx = [asym_adj(self.adj_mx), asym_adj(np.transpose(self.adj_mx))]
-        elif adjtype == "identity":
-            self.adj_mx = [np.diag(np.ones(self.adj_mx.shape[0])).astype(np.float32)]
-        else:
-            assert 0, "adj type not defined"
+    
 
     def calculate_loss(self, batch):
         y_true = batch['y']
@@ -545,8 +580,8 @@ class HIESTDistill(HIESTBase):
 
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
-        cy_predicted = self._scaler.inverse_transform(cy_predicted[..., :self.output_dim])
-        sy_predicted = self._scaler.inverse_transform(sy_predicted[..., :self.output_dim])
+        cy = self._scaler.inverse_transform(cy[..., :self.output_dim])
+        sy = self._scaler.inverse_transform(sy[..., :self.output_dim])
         # link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         # loss_f1 = loss.masked_rmse_torch(y_predicted, y_true, 0)
@@ -556,16 +591,16 @@ class HIESTDistill(HIESTBase):
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
         othloss = self.othLoss(hs)
         # othloss = torch.abs(self.othLoss(hs))
-        loss_c = loss.masked_mae_torch(cy_predicted, cy_true, 0)
-        loss_s = loss.masked_mae_torch(sy_predicted, sy_true, 0)
-        loss_or = loss.masked_mae_torch(self.afc_mx.detach().T.float() @ y_predicted,cy_predicted,0)
-        loss_rg = loss.masked_mae_torch(self.acs.detach().t().float() @ cy_predicted,sy_predicted,0)
+        loss_c = loss.masked_mae_torch(cy, cy_true, 0)
+        loss_s = loss.masked_mae_torch(sy, sy_true, 0)
+        loss_or = loss.masked_mae_torch(self.afc_mx.detach().T.float() @ y_predicted,cy,0)
+        loss_rg = loss.masked_mae_torch(self.acs.detach().t().float() @ cy,sy,0)
         # train_loss = loss_f + loss_c + 0.01*loss_s
-        # self._logger.info('link_loss: {0} ent_loss:{1}'.format(link_loss,ent_loss))
+        self._logger.info('loss_or: {0} loss_rg:{1}'.format(loss_or,loss_rg))
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
         # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         self._logger.info('fine_loss: {0} regional_loss:{1} global_loss:{2}'.format(loss_f,loss_c,loss_s))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + loss_c + 0.01*loss_s + loss_or + loss_rg #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)
+        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + 0.1*loss_c  + 0.01*loss_or + 0.01*loss_rg #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)++ 0.01*loss_s
 
     def predict(self, batch):
         return self.forward(batch)
