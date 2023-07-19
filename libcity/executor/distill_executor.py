@@ -194,15 +194,15 @@ class DistillTrafficStateExecutor(AbstractExecutor):
         for k,v in pretrained_dict.items():
             key = 'student_' + k
             # v.requires_grad=False
-            student_dict[k] = v
-        self.model.load_state_dict(student_dict, strict=False)
+            student_dict[key] = v
+        self.model.student.load_state_dict(student_dict, strict=False)
         # Teacher
         teacher_dict = OrderedDict()
         for k,v in pretrained_dict.items():
-            key = 'student_' + k
+            key = 'teacher_' + k
             v.requires_grad=False
-            teacher_dict[k] = v
-        self.model.load_state_dict(teacher_dict, strict=False)
+            teacher_dict[key] = v
+        self.model.teacher.load_state_dict(teacher_dict, strict=False)
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(self.best_epoch_idx))
 

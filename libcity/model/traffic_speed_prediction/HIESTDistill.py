@@ -321,7 +321,9 @@ class HIESTDistill(HIESTBase):
         else:
             x = inputs
 
-        x = self.start_conv(x)  # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        x = self.start_conv(x)  
+        # (batch_size, residual_channels, num_nodes, self.receptive_field)
+        # Star_conv 进行一个简单的线性变换
         tx = x
         skip = 0
         t_skip = 0
@@ -329,6 +331,22 @@ class HIESTDistill(HIESTBase):
         stu_skip_g = 0
         tea_skip_r = 0
         tea_skip_g = 0
+
+        # Block特征提取的流程
+        # 1. Residual 保存进入TCN前的特征
+        # 2. TCN得到新的特征表示，nhid=32
+        # 3. 经过Skip_conv 放入skip中, nhid*8
+        # 4. CHGCN,这里需要考虑的比较多
+        #   1). Student 与 Teacher 预测值的偏差
+        #   2). regional和global的ground truth算出来，做loss。regional 和 original 之间的映射是有实际物理意义的，算groud truth的话相当与original node构成的局部区域的一个均值,相当于这个区域的common的属性我感觉是有意义的。global 和 regional的话  相当于是每个global node代表的功能区会有的common属性，感觉也是有意义的。
+        #   3). 把“original和regional的prediction的差”和“original和regional的ground truth的差”做loss这个相当于是把common的部分align with。“regional和global也类似”
+        
+        # 5. 与Residual 中保存的特征合并，作为下一个block的输入
+
+        # 经过所有Block后
+        # 1. 经过Relu激活得到最终的特征表示
+        # 2. 特征表示经过end_conv 得到12步的预测值
+        # 3. 预测值在后续 calculate_loss 中计算loss
 
         for i in range(self.blocks * self.layers):
 
@@ -421,7 +439,9 @@ class HIESTDistill(HIESTBase):
             sxg = self.bns[i](sxg)
 
             # Teacher
-            tx,txr,txg = self.student.gconv[i](tx,self.supports,self.supports_c,acs)
+            tx,txr,txg = self.teacher.gconv[i](tx,self.supports,self.supports_c,acs)
+            # Txr 可以直接开始算loss
+            # 只在算loss的时候调个单独的函数获取txr,txg
             t_xr = self.skip_convs[i](txr)
             t_xg = self.skip_convs[i](txg)
             
@@ -551,6 +571,7 @@ class HIESTDistill(HIESTBase):
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         # ac = self.adj_mx1
+        # 正交损失
         acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
         # print("acs")
         # print(acs)
@@ -574,7 +595,8 @@ class HIESTDistill(HIESTBase):
         ac_hat = torch.sigmoid(hc.float() @ hct.float())
         # print(ac_hat.size())
         # print(self.adj_mx1.size())
-        
+
+        # regional和global的ground truth算出来，后续做loss。
         cy_true = self.afc_mx.detach().T.float() @ y_true
         sy_true = self.acs.detach().t().float() @ cy_true #F.softmax(self.acs.detach(),dim=-1)
 
@@ -591,9 +613,13 @@ class HIESTDistill(HIESTBase):
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
         othloss = self.othLoss(hs)
         # othloss = torch.abs(self.othLoss(hs))
+
+        # regional和global的ground truth与预测值的差算出来，做loss。
         loss_c = loss.masked_mae_torch(cy, cy_true, 0)
         loss_s = loss.masked_mae_torch(sy, sy_true, 0)
+        # “original和regional的prediction的差”
         loss_or = loss.masked_mae_torch(self.afc_mx.detach().T.float() @ y_predicted,cy,0)
+        # “regional和global的prediction的差”
         loss_rg = loss.masked_mae_torch(self.acs.detach().t().float() @ cy,sy,0)
         # train_loss = loss_f + loss_c + 0.01*loss_s
         self._logger.info('loss_or: {0} loss_rg:{1}'.format(loss_or,loss_rg))
