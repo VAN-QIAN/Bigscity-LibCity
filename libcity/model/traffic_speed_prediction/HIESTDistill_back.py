@@ -349,7 +349,6 @@ class HIESTDistill(HIESTBase):
         # 3. 预测值在后续 calculate_loss 中计算loss
 
         for i in range(self.blocks * self.layers):
-            # 单独把特征表示输出，在计算loss的时候过Student,和Teacher的表示再MMD
 
             #            |----------------------------------------|     *residual*
             #            |                                        |
@@ -362,7 +361,6 @@ class HIESTDistill(HIESTBase):
             # (dilation, init_dilation) = self.dilations[i]
             # residual = dilation_func(x, dilation, init_dilation, i)
             residual = x
-            
             # residual_c = sxr
             # residual_s = sxg
             # (batch_size, residual_channels, num_nodes, self.receptive_field)
@@ -374,8 +372,6 @@ class HIESTDistill(HIESTBase):
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             gate = torch.sigmoid(gate)
             x = filter * gate
-
-            fx = x
             # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
             # parametrized skip connection
             s = x
@@ -383,26 +379,108 @@ class HIESTDistill(HIESTBase):
             s = self.skip_convs[i](s)
             # (batch_size, skip_channels, num_nodes, receptive_field-kernel_size+1)
 
+            t_residual = tx
+            # residual_c = sxr
+            # residual_s = sxg
+            # (batch_size, residual_channels, num_nodes, self.receptive_field)
+            # dilated convolution
+            t_filter = self.filter_convs[i](t_residual)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            t_filter = torch.tanh(t_filter)
+            t_gate = self.gate_convs[i](t_residual)
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            t_gate = torch.sigmoid(t_gate)
+            tx = t_filter * t_gate
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            # parametrized skip connection
+            t_s = tx
+            # (batch_size, dilation_channels, num_nodes, receptive_field-kernel_size+1)
+            t_s = self.skip_convs[i](t_s)
+
+            # Student
+            x,sxr,sxg = self.student.gconv[i](x,self.supports,self.supports_c,acs)
+            s_xr = self.skip_convs[i](sxr)
+            s_xg = self.skip_convs[i](sxg)
+            # print('x.size()')
+            # print(x.size())
+            # print(sxr.size())
+            # print(sxg.size())
+
             try:
                 skip = skip[:, :, :, -s.size(3):]
+                stu_skip_r = stu_skip_r[:, :, :, -s_xr.size(3):]
+                stu_skip_g = stu_skip_g[:, :, :, -s_xg.size(3):]
+                
             except(Exception):
                 skip = 0
+                stu_skip_r = 0
+                stu_skip_g = 0
+
             skip = s + skip
-            x,xc,xs = self.gconv[i](x,self.supports,self.supports_c,acs)
-            tx,txr,txg = self.teacher.gconv[i](fx,self.supports,self.supports_c,acs)
+            # print('skip')
+            # print(skip.size())
+
+            stu_skip_r = s_xr + stu_skip_r
+
+            # print('stu_skip_r')
+            # print(stu_skip_r.size())
+            stu_skip_g = s_xg + stu_skip_g
             
             x = x + residual[:, :, :, -x.size(3):]
+            # print('before bc')
+            # print(x.size())
             x = self.bn[i](x)
-            # xc = self.bn[i](xc)
-            xc = self.bnc[i](xc)
-            xs = self.bns[i](xs)
-            tx = self.bn[i](tx)
-            # xc = self.bn[i](xc)
-            txc = self.bnc[i](txc)
-            txs = self.bns[i](txs)
+            # print('after bc')
+            # print(x.size())
+            # sxr = self.bn[i](sxr)
+            # print('before bnc')
+            # print(sxr.size())
+            sxr = self.bnc[i](sxr) #student.
+            sxg = self.bns[i](sxg)
+
+            # Teacher
+            tx,txr,txg = self.teacher.gconv[i](tx,self.supports,self.supports_c,acs)
+            # Txr 可以直接开始算loss
+            # 只在算loss的时候调个单独的函数获取txr,txg
+            t_xr = self.skip_convs[i](txr)
+            t_xg = self.skip_convs[i](txg)
+            
+
+            try:
+                t_skip = t_skip[:, :, :, -t_s.size(3):]
+                tea_skip_r = tea_skip_r[:, :, :, -t_xr.size(3):]
+                tea_skip_g = tea_skip_g[:, :, :, -t_xg.size(3):]
+                
+            except(Exception):
+                t_skip = 0
+                tea_skip_r = 0
+                tea_skip_g = 0
+
+            t_skip = t_s + t_skip
+            tea_skip_r = txr + tea_skip_r
+            tea_skip_g = txg + tea_skip_g
+            
+            tx = tx + t_residual[:, :, :, -tx.size(3):]
+            tx = self.bn[i](tx) #teacher.
+            # sxr = self.bn[i](sxr)
+            txr = self.bnc[i](txr)
+            txg = self.bns[i](txg)
+
         x = F.relu(skip)
-        # xc = F.relu(skip_c)
-        # xs = F.relu(skip_s)
+        # print(x.size())
+        # print('t_skip')
+        # print(t_skip.size())
+        tx = F.relu(t_skip)
+        # print('stu_skip_r')
+        # print(stu_skip_r.size())
+        sxr = F.relu(stu_skip_r)
+        txr = F.relu(tea_skip_r)
+        fc = sxr
+        sxg = F.relu(stu_skip_g)
+        txg = F.relu(tea_skip_g)
+        fs = sxg
+        # Feature representation is ready
+
         # (batch_size, skip_channels, num_nodes, self.output_dim)
         # xm = x.permute(0,3,2,1)
         # (batch_size, self.output_dim, num_nodes,skip_channels )
@@ -413,18 +491,19 @@ class HIESTDistill(HIESTBase):
         # (batch_size, self.output_dim, num_nodes,memory_dim ) .permute(0,3,2,1)
 
         # x = torch.cat((x, attentive_cluster_reps), dim=1)
+        # Go through the end_cov to get the predict result
         x = F.relu(self.end_conv_1(x))
-        # xc = F.relu(self.end_conv_1(xc)) #要注释
-        # xs = F.relu(self.end_conv_1(xs))
+        sxr = F.relu(self.end_conv_1(sxr)) 
+        sxg = F.relu(self.end_conv_1(sxg))
         # (batch_size, end_channels, num_nodes, self.output_dim)
         x = self.end_conv_2(x)
-        # xc = self.end_conv_2(xc)
-        # xs = self.end_conv_2(xs)
+        sxr = self.end_conv_2(sxr)
+        sxg = self.end_conv_2(sxg)
         # link_loss, ent_loss = self.assLoss(self.afc.T @ self.adj_mx @ self.afc,learned_acsmx[-1])
         # self._logger.info('link_loss: %.4f'%link_loss)
         # self._logger.info('ent_loss: %.4f'%(ent_loss))
         # (batch_size, output_window, num_nodes, self.output_dim)
-        return x,xc,xs,tx,txr,txg #,ac_hat,as_hat #,learned_acsmx[-1]
+        return x,fc,fs,sxr,sxg#,ac_hat,as_hat #,learned_acsmx[-1]
     
     def assLoss(self,adj,s):
         # adj = torch.from_numpy(adj)
@@ -486,19 +565,9 @@ class HIESTDistill(HIESTBase):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        # y_predicted,fxr = self.predict(batch)
-        y_predicted,fxr,fxg,tx,txr,txg = self.predict(batch)
-
-        # MSE distance
-        
-        global_mse_loss = nn.MSELoss()
-        global_mse = global_mse_loss(fxg,txg)
-
-        regional_mse_loss = nn.MSELoss()
-        regional_mse = regional_mse_loss(fxr,txr)
-
-        
-        # print('y_true', y_true.shape) ,fxr,sy_predicted,acs
+        # y_predicted,cy_predicted = self.predict(batch)
+        y_predicted,cy_predicted,hs,cy,sy = self.predict(batch)
+        # print('y_true', y_true.shape) ,cy_predicted,sy_predicted,acs
         # print('y_predicted', y_predicted.shape)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         # ac = self.adj_mx1
@@ -506,7 +575,7 @@ class HIESTDistill(HIESTBase):
         acs = F.softmax(F.relu(self.acs), dim=1) #-0.5
         # print("acs")
         # print(acs)
-        nf = self.afc_mx.float() @ fxr
+        nf = self.afc_mx.float() @ cy_predicted
         hf = nf.permute(2,1,0,3)
         hf = torch.reshape(hf,(self.num_nodes,-1))
         # print(hc.size())
@@ -515,7 +584,7 @@ class HIESTDistill(HIESTBase):
         # print(hct.size())
         af_hat = torch.sigmoid(hf.float() @ hft.float())
 
-        nc = acs.float()@fxg
+        nc = acs.float()@hs
         # print(nc.size())
         hc = nc.permute(2,1,0,3)
         hc = torch.reshape(hc,(self.coarse_nodes,-1))
@@ -528,15 +597,13 @@ class HIESTDistill(HIESTBase):
         # print(self.adj_mx1.size())
 
         # regional和global的ground truth算出来，后续做loss。
-        ry_true = self.afc_mx.detach().T.float() @ y_true
-        ry_predicted = self.afc_mx.detach().T.float() @ y_predicted
-        gy_true = self.acs.detach().t().float() @ ry_true #F.softmax(self.acs.detach(),dim=-1)
-        gy_predicted = self.acs.detach().t().float() @ ry_predicted
+        cy_true = self.afc_mx.detach().T.float() @ y_true
+        sy_true = self.acs.detach().t().float() @ cy_true #F.softmax(self.acs.detach(),dim=-1)
 
 
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
-        ry_predicted = self._scaler.inverse_transform(ry_predicted[..., :self.output_dim])
-        gy_predicted = self._scaler.inverse_transform(gy_predicted[..., :self.output_dim])
+        cy = self._scaler.inverse_transform(cy[..., :self.output_dim])
+        sy = self._scaler.inverse_transform(sy[..., :self.output_dim])
         # link_loss, ent_loss = self.assLoss(self.supports_c[0],self.acs.clone())#F.softmax(self.acs,dim=-1)
         loss_f = loss.masked_mae_torch(y_predicted, y_true, 0)
         # loss_f1 = loss.masked_rmse_torch(y_predicted, y_true, 0)
@@ -544,23 +611,22 @@ class HIESTDistill(HIESTBase):
         # x2 = torch.reshape(self.adj_mx1.long(), (-1,))
         loss_bce0 = F.binary_cross_entropy(af_hat,self.af,reduction='mean')
         loss_bce = F.binary_cross_entropy(ac_hat,self.adj_mx1.float(),reduction='mean')
-        othloss = self.othLoss(fxg)
-        # othloss = torch.abs(self.othLoss(fxg))
+        othloss = self.othLoss(hs)
+        # othloss = torch.abs(self.othLoss(hs))
 
         # regional和global的ground truth与预测值的差算出来，做loss。
-        loss_c = loss.masked_mae_torch(ry_predicted, ry_true, 0)
-        loss_s = loss.masked_mae_torch(gy_predicted, gy_true, 0)
+        loss_c = loss.masked_mae_torch(cy, cy_true, 0)
+        loss_s = loss.masked_mae_torch(sy, sy_true, 0)
         # “original和regional的prediction的差”
-        loss_or = loss.masked_mae_torch(self.afc_mx.detach().T.float() @ y_predicted,ry_predicted,0)
+        loss_or = loss.masked_mae_torch(self.afc_mx.detach().T.float() @ y_predicted,cy,0)
         # “regional和global的prediction的差”
-        loss_rg = loss.masked_mae_torch(self.acs.detach().t().float() @ ry_predicted,gy_predicted,0)
+        loss_rg = loss.masked_mae_torch(self.acs.detach().t().float() @ cy,sy,0)
         # train_loss = loss_f + loss_c + 0.01*loss_s
-        self._logger.info('mse_global: {0} mse_regional:{1}'.format(global_mse,regional_mse))
-        # self._logger.info('loss_or: {0} loss_rg:{1}'.format(loss_or,loss_rg))
+        self._logger.info('loss_or: {0} loss_rg:{1}'.format(loss_or,loss_rg))
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
         # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         self._logger.info('fine_loss: {0} regional_loss:{1} global_loss:{2}'.format(loss_f,loss_c,loss_s))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + 0.01*loss_c  + 0.01*loss_s + 0.01*global_mse #+ 0.01*regional_mse #+ 0.01*loss_or + 0.01*loss_rg #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)++ 0.01*loss_s
+        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + 0.1*loss_c  + 0.01*loss_or + 0.01*loss_rg #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)++ 0.01*loss_s
 
     def predict(self, batch):
         return self.forward(batch)
