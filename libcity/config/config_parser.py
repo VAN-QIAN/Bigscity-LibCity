@@ -158,7 +158,7 @@ class TransConfigParser(object):
     config 优先级：命令行 > config file > default config
     """
 
-    def __init__(self, task, model, source_dataset, target_dataset,config_file=None,
+    def __init__(self, task, model, target_model,source_dataset, target_dataset,config_file=None,
                  saved_model=True, train=True, other_args=None, hyper_config_dict=None):
         """
         Args:
@@ -167,12 +167,12 @@ class TransConfigParser(object):
             other_args (dict): 通过命令行传入的其他参数
         """
         self.config = {}
-        self._parse_external_config(task, model, source_dataset,target_dataset, saved_model, train, other_args, hyper_config_dict)
+        self._parse_external_config(task, model,target_model, source_dataset,target_dataset, saved_model, train, other_args, hyper_config_dict)
         self._parse_config_file(config_file)
         self._load_default_config()
         self._init_device()
 
-    def _parse_external_config(self, task, model, source_dataset,target_dataset,
+    def _parse_external_config(self, task, model,target_model, source_dataset,target_dataset,
                                saved_model=True, train=True, other_args=None, hyper_config_dict=None):
         if task is None:
             raise ValueError('the parameter task should not be None!')
@@ -183,7 +183,7 @@ class TransConfigParser(object):
         # 目前暂定这三个参数必须由用户指定
         self.config['task'] = task
         self.config['model'] = model
-        self.config['target_model'] = 'HIESTDistill'
+        self.config['target_model'] = target_model #'HIESTDistill'
         self.config['source_dataset'] = source_dataset
         self.config['target_dataset'] = target_dataset
         self.config['saved_model'] = saved_model

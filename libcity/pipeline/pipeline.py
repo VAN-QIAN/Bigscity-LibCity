@@ -42,24 +42,25 @@ def run_model(task=None, model_name=None, dataset_name=None, config_file=None,
     # seed
     seed = config.get('seed', 0)
     set_random_seed(seed)
-    # 加载数据集
+    # Get dataset
     dataset = get_dataset(config)
-    # 转换数据，并划分数据集
+    # Split
     train_data, valid_data, test_data = dataset.get_data()
     data_feature = dataset.get_data_feature()
-    # 加载执行器
+    # Set target directory
     model_cache_file = './libcity/cache/{}/model_cache/{}_{}.m'.format(
         exp_id, model_name, dataset_name)
+    # Load model and executor
     model = get_model(config, data_feature)
     executor = get_executor(config, model, data_feature)
-    # 训练
+    # Train
     if train or not os.path.exists(model_cache_file):
-        executor.train(test_data, valid_data) #train_data, valid_data
+        executor.train(train_data, valid_data) #train_data, valid_data
         if saved_model:
             executor.save_model(model_cache_file)
     else:
         executor.load_model(model_cache_file)
-    # 评估，评估结果将会放在 cache/evaluate_cache 下
+    # Evaluate，results will be in cache/evaluate_cache
     executor.evaluate(test_data)
 
 
@@ -174,7 +175,7 @@ def transfer(task=None, model_name=None, source_dataset_name=None,target_dataset
     executor.tune(train_data_t, valid_data_t)
     executor.evaluate(test_data_t)
 
-def distill(task=None, model_name=None, source_dataset_name=None,target_dataset_name=None, config_file=None,
+def distill(task=None, model_name=None,target_model_name=None ,source_dataset_name=None,target_dataset_name=None, config_file=None,
               saved_model=True, train=True, other_args=None):
     # TODO:
     # 1. Pretrain
@@ -193,7 +194,7 @@ def distill(task=None, model_name=None, source_dataset_name=None,target_dataset_
         other_args(dict): the rest parameter args, which will be pass to the Config
     """
     # load config
-    config = TransConfigParser(task, model_name, source_dataset_name,target_dataset_name,
+    config = TransConfigParser(task, model_name,target_model_name ,source_dataset_name,target_dataset_name,
                           config_file, saved_model, train, other_args)
     exp_id = config.get('exp_id', None)
     if exp_id is None:

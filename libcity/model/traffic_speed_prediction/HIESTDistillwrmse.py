@@ -301,12 +301,12 @@ class HIESTBase(AbstractTrafficStateModel):
         
 
 
-class HIESTDistill(HIESTBase):
+class HIESTDistillwRMSE(HIESTBase):
     def __init__(self, config, data_feature,source):
         if source == False:
             super().__init__(config, data_feature,source=False)
             self.teacher = HIESTBase(config, data_feature,source=False)
-            self.student = HIESTBase(config, data_feature,source=False)
+            # self.student = HIESTBase(config, data_feature,source=False)
 
 
     def forward(self, batch):
@@ -324,7 +324,7 @@ class HIESTDistill(HIESTBase):
         x = self.start_conv(x)  
         # (batch_size, residual_channels, num_nodes, self.receptive_field)
         # Star_conv 进行一个简单的线性变换
-        tx = x
+        # tx = x
         skip = 0
         t_skip = 0
         stu_skip_r = 0
@@ -560,7 +560,7 @@ class HIESTDistill(HIESTBase):
         # self._logger.info('fine_loss: {0} bce_loss:{1} oth_loss:{2} '.format(loss_f,loss_bce,othloss))
         # self._logger.info('fine_loss: {0} bce_loss:{1} bce_loss0:{2} othLoss:{3}'.format(loss_f,loss_bce,loss_bce0,othloss))
         self._logger.info('fine_loss: {0} regional_loss:{1} global_loss:{2}'.format(loss_f,loss_c,loss_s))
-        return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss #+ 100*global_mse + + 100*regional_mse #+ 0.01*loss_c  + 0.01*loss_s
+        return loss_f + 0.1*othloss  +  0.01*regional_mse # + 0.01*global_mse + 0.01*loss_c  + 0.01*loss_s + 0.01*loss_bce + 0.01*loss_bce0 
         # return loss_f + 0.01*loss_bce + 0.01*loss_bce0 + 0.1*othloss + 0.01*loss_c  + 0.01*loss_s + 0.01*global_mse #+ 0.01*regional_mse #+ 0.01*loss_or + 0.01*loss_rg #+ loss_f1 # + 0.01*loss_bce0+ loss_c #+ 0.001*(loss_s)#+link_loss+ent_loss)++ 0.01*loss_s
 
     def predict(self, batch):

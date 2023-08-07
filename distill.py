@@ -15,6 +15,8 @@ if __name__ == '__main__':
                         default='traffic_state_pred', help='the name of task')
     parser.add_argument('--model', type=str,
                         default='GRU', help='the name of model')
+    parser.add_argument('--target_model', type=str,
+                        default='GRU', help='the name of target_model')
     parser.add_argument('--source_dataset', type=str,
                         default='METR_LA', help='the name of dataset')
     parser.add_argument('--target_dataset', type=str,
@@ -33,8 +35,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dict_args = vars(args)
     other_args = {key: val for key, val in dict_args.items() if key not in [
-        'task', 'model', 'dataset', 'config_file', 'saved_model', 'train'] and
+        'task', 'model','target_model', 'dataset', 'config_file', 'saved_model', 'train'] and
         val is not None}
-    distill(task=args.task, model_name=args.model, source_dataset_name=args.source_dataset,target_dataset_name=args.target_dataset,
+    distill(task=args.task, model_name=args.model,target_model_name=args.target_model, source_dataset_name=args.source_dataset,target_dataset_name=args.target_dataset,
               config_file=args.config_file, saved_model=args.saved_model,
               train=args.train, other_args=other_args)

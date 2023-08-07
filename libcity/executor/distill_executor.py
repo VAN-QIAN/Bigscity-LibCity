@@ -189,20 +189,21 @@ class DistillTrafficStateExecutor(AbstractExecutor):
         pretrained_dict = checkpoint['model_state_dict']
         del pretrained_dict['acs']
         self.model.load_state_dict(pretrained_dict, strict=False)
-        # Student
-        student_dict = OrderedDict()
-        for k,v in pretrained_dict.items():
-            key = 'student_' + k
-            # v.requires_grad=False
-            student_dict[key] = v
-        self.model.student.load_state_dict(student_dict, strict=False)
+        # # Student
+        # student_dict = OrderedDict()
+        # for k,v in pretrained_dict.items():
+        #     key = 'student_' + k
+        #     # v.requires_grad=False
+        #     student_dict[key] = v
+        # self.model.student.load_state_dict(student_dict, strict=False)
         # Teacher
         teacher_dict = OrderedDict()
         for k,v in pretrained_dict.items():
-            key = 'teacher_' + k
+            key = k
             v.requires_grad=False
             teacher_dict[key] = v
         self.model.teacher.load_state_dict(teacher_dict, strict=False)
+        self._logger.info(self.model.teacher)
         # self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self._logger.info("Loaded model at {}".format(self.best_epoch_idx))
 
@@ -332,7 +333,7 @@ class DistillTrafficStateExecutor(AbstractExecutor):
             y_preds = []
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
-                output,coutput,soutput,sg,sr = self.model.predict(batch)
+                output,coutput,soutput,sx,sg,sr = self.model.predict(batch)
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
                 y_truths.append(y_true.cpu().numpy())
