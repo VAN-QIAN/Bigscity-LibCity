@@ -133,11 +133,11 @@ def transfer(task=None, model_name=None, source_dataset_name=None,target_dataset
         config_file(str): config filename used to modify the pipeline's
             settings. the config file should be json.
         saved_model(bool): whether to save the model
-        train(bool): whether to train the model
+        train(bool): whether to train thße model
         other_args(dict): the rest parameter args, which will be pass to the Config
     """
     # load config
-    config = TransConfigParser(task, model_name, source_dataset_name,target_dataset_name,
+    config = TransConfigParser(task, model_name,model_name ,source_dataset_name,target_dataset_name,
                           config_file, saved_model, train, other_args)
     exp_id = config.get('exp_id', None)
     if exp_id is None:
