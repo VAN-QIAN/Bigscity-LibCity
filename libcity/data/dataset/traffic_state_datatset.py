@@ -215,6 +215,7 @@ class TrafficStateDataset(AbstractDataset):
         std = distances.std()
         self.adj_mx = np.exp(-np.square(self.adj_mx / std))
         self.adj_mx[self.adj_mx < self.weight_adj_epsilon] = 0
+        np.save(self.data_path + self.dataset + '.matrix.npy',self.adj_mx )
 
     def _distance_inverse(self):
         self._logger.info("Start Calculate the weight by _distance_inverse!")
